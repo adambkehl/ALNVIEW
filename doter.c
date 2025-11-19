@@ -63,10 +63,13 @@ printf("mthr = %lld\n",mthr);
             u = (u >> 2) | Cumber[x];
             if (p >= k)
               { if (u < c)
-                  list[q].code = u;
+                  { list[q].code = u;
+                    list[q++].pos = (p << 1) | 1;
+                  }
                 else
-                  list[q].code = c;
-                list[q++].pos = p;
+                  { list[q].code = c;
+                    list[q++].pos = (p << 1);
+                  }
               }
           }
       }
@@ -257,13 +260,6 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view)
   int64 vW = view->w;
   int64 vH = view->h;
 
-  // double xa = (rectH-44.)/vH;
-  // double xb = 22.;
-  // double ya = (rectW-44.)/vW;
-  // double yb = 22.;
-
-  // printf(" %lld-%lld vs %lld-%lld %d\n",vX,vX+vW,vY,vY+vH,kmer);
-
   aseq = build_string(&(plot->db1->gdb),vX,vX+vW,aseq);
   bseq = build_string(&(plot->db2->gdb),vY,vY+vH,bseq);
 
@@ -293,10 +289,10 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view)
 
     printf("Scan Lines:\n");
     for (i = 0; i < brun; i++)
-      { printf(" %5d:",blist[i].pos);
+      { printf(" %5d(%d):",blist[i].pos>>1,(blist[i].pos&0x1));
         j = blist[i].code;
         while (aplot[j] >= 0)
-          { printf(" %5d",aplot[j]);
+          { printf(" %5d(%d)",aplot[j]>>1,(aplot[j]&0x1));
             j += 1;
           }
         printf("\n");
@@ -313,7 +309,7 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view)
         if (j >= ahit && j != 2*arun-1)
           printf("bcode val out of bounds\n");
         while (aplot[j] >= 0)
-          { if (aplot[j] > amax)
+          { if (aplot[j] > 2*amax)
               printf("aplot val out of bounds\n");
             j += 1;
           }
@@ -350,34 +346,6 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view)
   dot->brun  = brun;
   dot->aplot = aplot;
   dot->blist = blist;
-
-/*
-  // printf("Paint = (%lld,%lld) %lld x %lld into %d x %d\n",vX,vY,vW,vH,rectW,rectH);
-
-  { int i, x;
-
-    for (i = 0; i < ahit; i++)
-      { x = aplot[i];
-        if (x >= 0)
-          aplot[i] = ((int) floor(xa*x+xb));
-      }
-  }
-
-  { int i, k, u;
-    uint8 *ras;
-
-    for (i = 0; i < brun; i++)
-      { ras = raster[((int) floor(ya*blist[i].pos+yb))];
-        k = blist[i].code;
-        while (1)
-          { u = aplot[k++];
-            if (u < 0) 
-              break;
-            ras[u] = 255;
-          }
-      }
-  }
-*/
 
   return (dot);
 }

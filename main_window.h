@@ -133,7 +133,8 @@ public:
 
   static int labelWidth;
 
-  static QVector<QRgb> ctable;
+  static QVector<QRgb> pctable;
+  static QVector<QRgb> nctable;
   static QVector<uchar> imbit;
 
 public slots:
@@ -173,8 +174,10 @@ private:
   int          rectW;
   int          rectH;
 
-  QImage      *image;
-  uchar      **raster;
+  QImage      *pimage;
+  uchar      **praster;
+  QImage      *nimage;
+  uchar      **nraster;
 
   DotPlot     *plot;
   DotState    *state;

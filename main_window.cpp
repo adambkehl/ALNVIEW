@@ -131,8 +131,10 @@ DotCanvas::DotCanvas(QWidget *parent) : QWidget(parent)
   rubber  = new QRubberBand(QRubberBand::Rectangle, this);
   timer   = new QBasicTimer();
 
-  image  = NULL;
-  raster = new uchar *[screen()->availableGeometry().height()];
+  pimage  = NULL;
+  nimage  = NULL;
+  praster = new uchar *[screen()->availableGeometry().height()];
+  nraster = new uchar *[screen()->availableGeometry().height()];
 
   setAttribute(Qt::WA_KeyCompression,false);
 
@@ -762,12 +764,11 @@ void DotCanvas::showAlign()
   awin->show();
   awin->move(QPoint(state->wGeom.x()+DotWindow::windowHeight,state->wGeom.y()));
   awin->raise();
-
-  // par->addTextBox(awin);
 }
  
-QVector<QRgb>  DotCanvas::ctable(2);
-QVector<uchar> DotCanvas::imbit(8);
+QVector<QRgb>  DotCanvas::pctable(2);
+QVector<QRgb>  DotCanvas::nctable(2);
+QVector<uchar> DotCanvas::imbit(16);
 
 void DotCanvas::paintEvent(QPaintEvent *event)
 { QPainter  painter;
@@ -816,8 +817,6 @@ void DotCanvas::paintEvent(QPaintEvent *event)
             { state->zMag.push(mag);
               break;
             }
-          // x = state->zXct.pop();
-          // y = state->zYct.pop();
         }
     }
   state->lMag = cMag;
@@ -1064,9 +1063,10 @@ void DotCanvas::paintEvent(QPaintEvent *event)
           continue;
 
         if (k == 0)
-          { int   r, g, b;
-            int   kmer, klen;
-            Dots *dot;
+          { int    r, g, b;
+            int    kmer, klen;
+            Dots  *dot;
+            double xa2, ya2;
 
             if (state->view.w > 1000000)
               continue;
@@ -1074,26 +1074,37 @@ void DotCanvas::paintEvent(QPaintEvent *event)
             kmer = state->thick[0]+8;
             klen = kmer*xa;
 
-            if (image == NULL || rectW != image->width() || rectH != image->height() ||
-                (image->format() == QImage::Format_MonoLSB) == (klen >= 3))
-              { if (image != NULL)
-                  delete image;
+            xa2 = xa/2.;
+            ya2 = ya/2.;
+
+            if (pimage == NULL || rectW != pimage->width() || rectH != pimage->height() ||
+                (pimage->format() == QImage::Format_MonoLSB) == (klen >= 3))
+              { if (pimage != NULL)
+                  delete pimage;
+                if (nimage != NULL)
+                  delete nimage;
                 if (klen >= 3)
-                  image = new QImage(rectW,rectH,QImage::Format_RGB32);
+                  { pimage = new QImage(rectW,rectH,QImage::Format_RGB32);
+                    nimage = NULL;
+                  }
                 else
-                  { image = new QImage(rectW,rectH,QImage::Format_MonoLSB);
+                  { pimage = new QImage(rectW,rectH,QImage::Format_MonoLSB);
+                    nimage = new QImage(rectW,rectH,QImage::Format_MonoLSB);
                     for (r = 0; r < rectH; r++)
-                      raster[r] = image->scanLine(r); 
+                      { praster[r] = pimage->scanLine(r); 
+                        nraster[r] = nimage->scanLine(r); 
+                      }
                   }
               }                  
 
             if (klen < 3)
-              image->setColorTable(ctable);
-            image->fill(0);
+              { pimage->setColorTable(pctable);
+                nimage->setColorTable(nctable);
+                nimage->fill(0);
+              }
+            pimage->fill(0);
 
             dot  = dotplot(plot,kmer,&(state->view));
-
-// printf("%d x %d\n",dot->ahit,dot->brun);
 
             { int  i, x;
               int *aplot = dot->aplot;
@@ -1101,63 +1112,85 @@ void DotCanvas::paintEvent(QPaintEvent *event)
               for (i = 0; i < dot->ahit; i++)
                 { x = aplot[i];
                   if (x >= 0)
-                    aplot[i] = ((int) floor(xa*x+22.));
+                    aplot[i] = (((int) floor(xa2*x+22.)) << 1) | (x & 0x1);
                 }
             }
 
-            r = state->colorF[0].red();
-            g = state->colorF[0].green();
-            b = state->colorF[0].blue();
-
             if (klen >= 3)
-              { QPainter dotter(image);
-                QPen     dPen;
+              { QPainter dotter(pimage);
+                QPen     fPen, rPen;
                 int     *aplot = dot->aplot;
                 Tuple   *blist = dot->blist;
-                int      i, x, y, k;
+                int      i, x, y, k, o;
 
-                dPen.setColor(QColor(r,g,b));
-                dPen.setWidth(1);
+                fPen.setColor(state->colorF[0]);
+                rPen.setColor(state->colorR[0]);
 
                 dotter.setRenderHint(QPainter::Antialiasing,true);
                 dotter.setClipRegion(QRect(22,22,rectW-22,rectH-22));
-                dotter.setPen(dPen);
 
                 for (i = 0; i < dot->brun; i++)
-                  { y = (int) floor(ya*blist[i].pos+22.);
+                  { y = (int) floor(ya2*blist[i].pos+22.);
                     k = blist[i].code;
+                    o = (blist[i].pos & 0x1);
                     while (1)
                       { x = aplot[k++];
                         if (x < 0)
                           break;
-                        dotter.drawLine(x,y,x+klen,y+klen);
+                        if ((x & 0x1) == o)
+                          { x >>= 1;
+                            dotter.setPen(fPen);
+                            dotter.drawLine(x,y,x+klen,y+klen);
+                          }
+                        else
+                          { x >>= 1;
+                            dotter.setPen(rPen);
+                            dotter.drawLine(x+klen,y,x,y+klen);
+                          }
                       }
                   }
+
+                painter.drawImage(QPoint(0,0),*pimage);
               }
             else
-              { int i, x, k; 
-                uint8 *ras;
+              { int i, x, k, o; 
+                uint8 *pras, *nras;
                 int   *aplot = dot->aplot;
                 Tuple *blist = dot->blist;
 
-                ctable[0] = qRgba(0,0,0,0);
-                ctable[1] = qRgba(r,g,b,255);
-                for (r = 0; r < 8; r++)
-                  imbit[r] = (1<<r); 
+                r = state->colorF[0].red();
+                g = state->colorF[0].green();
+                b = state->colorF[0].blue();
+                pctable[0] = qRgba(0,0,0,0);
+                pctable[1] = qRgba(r,g,b,255);
+                r = state->colorR[0].red();
+                g = state->colorR[0].green();
+                b = state->colorR[0].blue();
+                nctable[0] = qRgba(0,0,0,0);
+                nctable[1] = qRgba(r,g,b,255);
+                for (r = 0; r < 16; r++)
+                  imbit[r] = (1<<(r>>1)); 
 
                 for (i = 0; i < dot->brun; i++)
-                  { ras = raster[((int) floor(ya*blist[i].pos+22.))];
+                  { x = (int) floor(ya2*blist[i].pos+22.);
+                    pras = praster[x];
+                    nras = nraster[x];
+                    o = (blist[i].pos & 0x1);
                     k = blist[i].code;
                     while (1)
                       { x = aplot[k++];
                         if (x < 0)
                           break;
-                        ras[x>>3] |= imbit[x&0x7];
+                        if ((x & 0x1) == o)
+                          pras[x>>4] |= imbit[x&0xf];
+                        else
+                          nras[x>>4] |= imbit[x&0xf];
                       }
                   }
-              }
 
-            painter.drawImage(QPoint(0,0),*image);
+                painter.drawImage(QPoint(0,0),*nimage);
+                painter.drawImage(QPoint(0,0),*pimage);
+              }
 
             continue;
           }
@@ -1738,10 +1771,7 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
         layerFBox[j]->setIconSize(QSize(16,16));
         layerFBox[j]->setFixedSize(20,20);
 
-      if (j == 0)
-        layerFText[j] = new QLabel(tr("     K-mer"));
-      else
-        layerFText[j] = new QLabel(tr(" F"));
+      layerFText[j] = new QLabel(tr(" F"));
 
       layerRBox[j] = new QToolButton();
         layerRBox[j]->setIconSize(QSize(16,16));
@@ -1780,14 +1810,10 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
         layerLayout2->addSpacing(24);
         layerLayout2->addWidget(layerFBox[j]);
         layerLayout2->addWidget(layerFText[j]);
-        if (j == 0)
-          layerLayout2->addSpacing(2);
-        else
-          { layerLayout2->addSpacing(6);
-            layerLayout2->addWidget(layerRBox[j]);
-            layerLayout2->addWidget(layerRText[j]);
-            layerLayout2->addSpacing(6);
-          }
+        layerLayout2->addSpacing(6);
+        layerLayout2->addWidget(layerRBox[j]);
+        layerLayout2->addWidget(layerRText[j]);
+        layerLayout2->addSpacing(6);
 	layerLayout2->addWidget(layerThick[j]);
 	layerLayout2->addStretch(1);
 
