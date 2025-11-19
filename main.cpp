@@ -9,8 +9,11 @@
 
 #include "main_window.h"
 
+static char EMessage[1000];
+
 int main(int argc, char *argv[])
-{
+{ Error_Buffer = EMessage;
+
   QApplication app(argc, argv);
 
   DotWindow::openDialog = new OpenDialog(NULL);

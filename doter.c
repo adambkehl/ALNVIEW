@@ -15,9 +15,19 @@ static int build_vector(int64 len, char *seq, int kmer, Tuple *list)
 { uint64 Kmask, Cumber[5];
   int64  p, q, k, km1;
   uint64 u, c, x;
+// uint64 mthr;
 
   km1  = kmer-1;
   len -= km1;
+
+/*
+  if (len >= 1000000)
+    mthr = (uint64) (1001llu * (1000000./len));
+  else
+    mthr = 1llu;
+
+printf("mthr = %lld\n",mthr);
+*/
  
   if (kmer == 32)
     Kmask = 0xffffffffffffffffllu;
@@ -39,24 +49,58 @@ static int build_vector(int64 len, char *seq, int kmer, Tuple *list)
   q = 0;
   k = 0;
   seq += km1;
-  for (p = 0; p < len; p++)
-    { x = seq[p];
-      if (x >= 4)
-        { k = p+kmer;
-          c = u = 0;
-        }
-      else
-        { c = ((c << 2) | x) & Kmask;
-          u = (u >> 2) | Cumber[x];
-          if (p >= k)
-            { if (u < c)
-                list[q].code = u;
-              else
-                list[q].code = c;
-              list[q++].pos = p;
-            }
-        }
-    }
+
+// if (mthr == 1)
+
+    for (p = 0; p < len; p++)
+      { x = seq[p];
+        if (x >= 4)
+          { k = p+kmer;
+            c = u = 0;
+          }
+        else
+          { c = ((c << 2) | x) & Kmask;
+            u = (u >> 2) | Cumber[x];
+            if (p >= k)
+              { if (u < c)
+                  list[q].code = u;
+                else
+                  list[q].code = c;
+                list[q++].pos = p;
+              }
+          }
+      }
+
+/*
+  else
+
+    for (p = 0; p < len; p++)
+      { x = seq[p];
+        if (x >= 4)
+          { k = p+kmer;
+            c = u = 0;
+          }
+        else
+          { c = ((c << 2) | x) & Kmask;
+            u = (u >> 2) | Cumber[x];
+            if (p >= k)
+              { if (u < c)
+                  { if (u%1001llu <= mthr)
+                      { list[q].code = u;
+                        list[q++].pos = p;
+                      }
+                  }
+                else
+                  { if (c%1001llu <= mthr)
+                      { list[q].code = c;
+                        list[q++].pos = p;
+                      }
+                  }
+              }
+          }
+      }
+*/
+
   return ((int) q);
 }
 

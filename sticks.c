@@ -806,8 +806,8 @@ DotPlot *copyPlot(DotPlot *model)
 
   plot = malloc(sizeof(DotPlot));
   if (plot == NULL)
-    { sprintf(EPLACE,"Cannot allocate plot record\n");
-      return (NULL);
+    { EPRINTF("Cannot allocate plot record");
+      EXIT (NULL);
     }
 
   *plot = *model;
@@ -866,8 +866,8 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
   if (model == NULL)
     { plot = malloc(sizeof(DotPlot));
       if (plot == NULL)
-        { sprintf(EPLACE,"Cannot allocate plot record\n");
-          return (NULL);
+        { EPRINTF("Cannot allocate plot record");
+          EXIT (NULL);
         }
     }
   else
@@ -883,12 +883,12 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
     input = open_Aln_Read(Catenate(pwd,"/",root,".1aln"),1,
                            &novl,&tspace,&src1_name,&src2_name,&cpath);
     if (input == NULL)
-      { sprintf(EPLACE,"Could not open .1aln file %s/%s.1aln\n",pwd,root);
+      { EPRINTF("Could not open .1aln file %s/%s.1aln",pwd,root);
         free(root);
         free(pwd);
         if (model == NULL)
           free(plot);
-        return (NULL);
+        EXIT (NULL);
       }
     free(root);
     free(pwd);
@@ -928,7 +928,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
       { db1 = malloc(sizeof(DotGDB));
         db2 = NULL;
         if (db1 == NULL)
-          { sprintf(EPLACE,"Cannot allocate GDB record");
+          { EPRINTF("Cannot allocate GDB record");
             goto error2;
           }
         db1->nref = 1;
@@ -941,7 +941,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
         else
           { db2 = malloc(sizeof(DotGDB));
             if (db2 == NULL)
-              { sprintf(EPLACE,"Cannot allocate GDB record");
+              { EPRINTF("Cannot allocate GDB record");
                 goto error2;
               }
             db2->nref = 1;
@@ -970,11 +970,11 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
         Close_GDB(gdb1);
 
         if (comp1)
-          { sprintf(EPLACE,"1st Genome is not the same as the base layer");
+          { EPRINTF("1st Genome is not the same as the base layer");
             goto error1;
           }
         if (comp2)
-          { sprintf(EPLACE,"2nd Genome is not the same as the base layer");
+          { EPRINTF("2nd Genome is not the same as the base layer");
             goto error1;
           }
       }
@@ -1015,7 +1015,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
                 goto error3;
             }
           else
-            { sprintf(EPLACE,"Duplicate scaffold name: %s\n",sptr);
+            { EPRINTF("Duplicate scaffold name: %s\n",sptr);
               goto error3;
             }
         }
@@ -1036,7 +1036,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
                     goto error4;
                 }
               else
-                { sprintf(EPLACE,"Duplicate scaffold name: %s\n",sptr);
+                { EPRINTF("Duplicate scaffold name: %s",sptr);
                   goto error4;
                 }
             }
@@ -1094,13 +1094,13 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
     else
       nlay = plot->nlays;
     if (nlay >= MAX_LAYERS)
-      { sprintf(EPLACE,"Cannot have more than %d layers\n",MAX_LAYERS);
+      { EPRINTF("Cannot have more than %d layers\n",MAX_LAYERS);
         goto error4;
       }
  
     segs = malloc(sizeof(DotSegment)*novl);
     if (segs == NULL)
-      { sprintf(EPLACE,"Cannot allocate memory for %lld alignments\n",novl);
+      { EPRINTF("Cannot allocate memory for %lld alignments",novl);
         goto error4;
       }
 
@@ -1207,7 +1207,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
 
     layer = malloc(sizeof(DotLayer));
     if (layer == NULL)
-      { sprintf(EPLACE,"Could not allocate layer record\n");
+      { EPRINTF("Could not allocate layer record");
         free(segs);
         goto error4;
       }
@@ -1258,7 +1258,7 @@ error1:
   oneFileClose(input);
   if (model == NULL)
     free(plot);
-  return (NULL);
+  EXIT (NULL);
 }
 
 void Free_List(QuadLeaf *list)

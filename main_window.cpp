@@ -1093,6 +1093,8 @@ void DotCanvas::paintEvent(QPaintEvent *event)
 
             dot  = dotplot(plot,kmer,&(state->view));
 
+// printf("%d x %d\n",dot->ahit,dot->brun);
+
             { int  i, x;
               int *aplot = dot->aplot;
 
@@ -1138,8 +1140,8 @@ void DotCanvas::paintEvent(QPaintEvent *event)
                 int   *aplot = dot->aplot;
                 Tuple *blist = dot->blist;
 
-                ctable[0] = qRgb(0,0,0);
-                ctable[1] = qRgb(r,g,b);
+                ctable[0] = qRgba(0,0,0,0);
+                ctable[1] = qRgba(r,g,b,255);
                 for (r = 0; r < 8; r++)
                   imbit[r] = (1<<r); 
 
@@ -1525,7 +1527,7 @@ tryagain:
   plot = createPlot(dataset.alnInfo->absoluteFilePath().toLatin1().data(),
                     dataset.longCut,dataset.idCut,dataset.sizeCut,NULL);
   if (plot == NULL)
-    { DotWindow::warning(tr(Ebuffer),NULL,DotWindow::ERROR,tr("OK"));
+    { DotWindow::warning(tr(Error_Buffer),NULL,DotWindow::ERROR,tr("OK"));
       if (dotwindows.length() == 0)
         goto tryagain;
       else
@@ -1562,7 +1564,7 @@ void DotWindow::openOverlay()
   nplot = createPlot(dataset.alnInfo->absoluteFilePath().toLatin1().data(),
                      dataset.longCut,dataset.idCut,dataset.sizeCut,plot);
   if (nplot == NULL)
-    { DotWindow::warning(tr(Ebuffer),this,DotWindow::ERROR,tr("OK"));
+    { DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
       return;
     }
 
@@ -2240,14 +2242,14 @@ void DotWindow::checkRangeA()
 { Selection sel;
 
   if (plot != NULL && interpret_range(&sel,Arng->text().toLatin1().data(),&(plot->db1->gdb),plot->db1->hash))
-    DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
 }
 
 void DotWindow::checkRangeB()
 { Selection sel;
 
   if (plot != NULL && interpret_range(&sel,Brng->text().toLatin1().data(),&(plot->db2->gdb),plot->db2->hash))
-    DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
 }
 
 void DotWindow::viewChange()
@@ -2258,12 +2260,12 @@ void DotWindow::viewChange()
   int64     bb, be;
 
   if (interpret_range(&asel,Arng->text().toLatin1().data(),&(plot->db1->gdb),plot->db1->hash))
-    { DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    { DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
       return;
     }
 
   if (interpret_range(&bsel,Brng->text().toLatin1().data(),&(plot->db2->gdb),plot->db2->hash))
-    { DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    { DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
       return;
     }
 
@@ -2300,14 +2302,14 @@ void DotWindow::checkFocus()
 { Selection sel;
 
   if (plot != NULL && interpret_point(&sel,Fpnt->text().toLatin1().data(),&(plot->db1->gdb),plot->db1->hash,&(plot->db2->gdb),plot->db2->hash))
-    DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
 }
 
 void DotWindow::focusChange()
 { Selection sel;
 
   if (interpret_point(&sel,Fpnt->text().toLatin1().data(),&(plot->db1->gdb),plot->db1->hash,&(plot->db2->gdb),plot->db2->hash))
-    { DotWindow::warning(tr(EPLACE),this,DotWindow::ERROR,tr("OK"));
+    { DotWindow::warning(tr(Error_Buffer),this,DotWindow::ERROR,tr("OK"));
       return;
     }
 
