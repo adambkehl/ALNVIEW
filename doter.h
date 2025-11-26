@@ -4,7 +4,9 @@
 #include "GDB.h"
 #include "sticks.h"
 
-#define MAX_DOTPLOT 1000000
+#define MAX_DOTPLOT 10000000
+#define MAX_KMERS     750000
+#define SUPER_DENSE        7
 
 void *dotplot_memory();
 
@@ -14,13 +16,13 @@ typedef struct
   } Tuple;
 
 typedef struct
-  { int    ahit, brun;
-    int   *aplot;
+  { int    density;    //  average # of k-mers per image pixel
+    int    width;      //  max # of B-seq k-mers mapping to a single row (y-coord)
+    int    brun;
     Tuple *blist;
+    int   *aplot;
   } Dots;
 
-Dots *dotplot(DotPlot *plot, int kmer, View *view);
-
-// Dots *dotplot(DotPlot *plot, int kmer, View *view, int rectW, int rectH, uint8 **raster);
+Dots *dotplot(DotPlot *plot, int kmer, View *view, double xa, double ya);
 
 #endif

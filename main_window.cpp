@@ -692,7 +692,6 @@ void DotCanvas::mouseReleaseEvent(QMouseEvent *event)
       printf("Selected\n");
 #endif
       QRect reg  = rubber->geometry();
-      View  undo = state->view;
       int64 xb = frame.x + ((reg.x()-20.)/(rectW-40.))*frame.w;
       int64 yb = frame.y + ((reg.y()-20.)/(rectH-40.))*frame.h;
       int64 xe = frame.x + (((reg.x()-20.)+reg.width())/(rectW-40.))*frame.w;
@@ -713,10 +712,8 @@ void DotCanvas::mouseReleaseEvent(QMouseEvent *event)
       printf("Region select (%d,%d) %d x %d\n",reg.x(),reg.y(),reg.width(),reg.height());
       printf("      = view  (%lld,%lld) (%lld,%lld)\n",xb,yb,xe,ye);
 #endif
-      if (viewToFrame())
-        update();
-      else
-        state->view = undo;
+      viewToFrame();
+      repaint();
     }
   else if (picking)
     { if (!menuLock)
@@ -1066,16 +1063,12 @@ void DotCanvas::paintEvent(QPaintEvent *event)
           { int    r, g, b;
             int    kmer, klen;
             Dots  *dot;
-            double xa2, ya2;
 
-            if (state->view.w > 1000000)
+            if (state->view.w > MAX_DOTPLOT)
               continue;
 
             kmer = state->thick[0]+8;
             klen = kmer*xa;
-
-            xa2 = xa/2.;
-            ya2 = ya/2.;
 
             if (pimage == NULL || rectW != pimage->width() || rectH != pimage->height() ||
                 (pimage->format() == QImage::Format_MonoLSB) == (klen >= 3))
@@ -1104,17 +1097,7 @@ void DotCanvas::paintEvent(QPaintEvent *event)
               }
             pimage->fill(0);
 
-            dot  = dotplot(plot,kmer,&(state->view));
-
-            { int  i, x;
-              int *aplot = dot->aplot;
-
-              for (i = 0; i < dot->ahit; i++)
-                { x = aplot[i];
-                  if (x >= 0)
-                    aplot[i] = (((int) floor(xa2*x+22.)) << 1) | (x & 0x1);
-                }
-            }
+            dot = dotplot(plot,kmer,&(state->view),xa,ya);
 
             if (klen >= 3)
               { QPainter dotter(pimage);
@@ -1130,9 +1113,10 @@ void DotCanvas::paintEvent(QPaintEvent *event)
                 dotter.setClipRegion(QRect(22,22,rectW-22,rectH-22));
 
                 for (i = 0; i < dot->brun; i++)
-                  { y = (int) floor(ya2*blist[i].pos+22.);
+                  { y = blist[i].pos;
+                    o = y & 0x1;
+                    y >>= 1;
                     k = blist[i].code;
-                    o = (blist[i].pos & 0x1);
                     while (1)
                       { x = aplot[k++];
                         if (x < 0)
@@ -1172,10 +1156,11 @@ void DotCanvas::paintEvent(QPaintEvent *event)
                   imbit[r] = (1<<(r>>1)); 
 
                 for (i = 0; i < dot->brun; i++)
-                  { x = (int) floor(ya2*blist[i].pos+22.);
+                  { x = blist[i].pos;
+                    o = (x & 0x1);
+                    x >>= 1;
                     pras = praster[x];
                     nras = nraster[x];
-                    o = (blist[i].pos & 0x1);
                     k = blist[i].code;
                     while (1)
                       { x = aplot[k++];
