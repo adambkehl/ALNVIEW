@@ -4,7 +4,7 @@
 #include <QtGui>
 
 #ifdef Q_WS_MAC
-#include <QMacStyle>
+// #include <QMacStyle>
 #endif
 
 #include "main_window.h"

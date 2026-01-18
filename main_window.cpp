@@ -128,6 +128,7 @@ DotCanvas::DotCanvas(QWidget *parent) : QWidget(parent)
 { setSizePolicy(QSizePolicy::MinimumExpanding,QSizePolicy::MinimumExpanding);
   noFrame = true;
   pickedSeg = NULL;
+  picking   = false;
   rubber  = new QRubberBand(QRubberBand::Rectangle, this);
   timer   = new QBasicTimer();
 
@@ -595,6 +596,8 @@ void DotCanvas::mousePressEvent(QMouseEvent *event)
 #ifdef DEBUG
   printf("Press %d %d\n",mouseX,mouseY);
 #endif
+  if (picking)
+    return;
   if ((QApplication::keyboardModifiers() & Qt::ShiftModifier) != 0)
     if (lastKey == Qt::Key_X)
       { menuLock = true;
@@ -641,8 +644,9 @@ pick_code:
 
       d1 = digits(len,&s1,&prec);
 
-      bline->setText(tr("Len: %1%2   Id: %3\%").
-                        arg(len/d1,4,'f',prec).arg(s1).arg(pickedSeg->iid));
+      bline->setText(tr("Len: %1%2   Id: %3.%4\%").
+                        arg(len/d1,4,'f',prec).arg(s1).
+                        arg(pickedSeg->iid/100).arg(pickedSeg->iid%100));
 
       popup->popup(event->globalPosition().toPoint());
 
@@ -721,7 +725,9 @@ void DotCanvas::mouseReleaseEvent(QMouseEvent *event)
           faraway->hide();
           setFocus();
           pickedSeg = NULL;
+          picking   = false;
         }
+      menuLock = false;
     }
   else if (nograb)
     { double ex = event->position().toPoint().x()-20.;

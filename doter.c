@@ -68,7 +68,7 @@ static int build_segment(int len, char  *seq, int pos, int idx, Build_State *sta
                   idx = new_threshold(list,idx,thr);
                 }
               list[idx].code = u;
-              list[idx++].pos = (((int) (scale*p+22)) << 1) | 1;
+              list[idx++].pos = (((int) (scale*p+22.)) << 1) | 1;
             }
         }
       else
@@ -78,7 +78,7 @@ static int build_segment(int len, char  *seq, int pos, int idx, Build_State *sta
                   idx = new_threshold(list,idx,thr);
                 }
               list[idx].code = c;
-              list[idx++].pos = (((int) (scale*p+22)) << 1);
+              list[idx++].pos = (((int) (scale*p+22.)) << 1);
             }
         }
     }
@@ -188,6 +188,58 @@ static int build_vector(GDB *gdb, int64 vbeg, int64 vend, Build_State *state)
   return (idx);
 }
 
+static int64 count_hits(int brun, Tuple *blist, int arun, Tuple *alist)
+{ int     i, j;
+  int     al, bl;
+  int     al2, bl2;
+  uint64  kb, lc;
+  int     na, nb;
+  int64   nel;
+
+  bl = brun;
+  al = arun;
+
+  lc = alist[al-1].code;
+  for (bl2 = bl-1; bl2 >= 0; bl2--)
+    if (blist[bl2].code < lc)
+      break;
+  bl2 += 1;
+  for (al2 = al-2; al2 >= 0; al2--)
+    if (alist[al2].code < lc)
+      break;
+  al2 += 1;
+
+  nel = 0;
+  i = j = 0;
+  while (i < bl2)
+    { kb = blist[i].code;
+      while (alist[j].code < kb)
+        j += 1;
+
+      nb = 1;
+      for (i++; blist[i].code == kb; i++)
+        nb += 1;
+      if (alist[j].code == kb)
+        { na = 1;
+          for (j++; alist[j].code == kb; j++)
+            na += 1;
+          nel += na*nb;
+        }
+    }
+
+  if (i < bl && blist[i].code == lc)
+    { nb = 1;
+      for (i++; i < bl && blist[i].code == lc; i++)
+        nb += 1;
+      na = 0;
+      while (al2++ < al)
+        na += 1;
+      nel += na*nb;
+    }
+
+  return (nel);
+}
+
 static int merge(int brun, Tuple *blist, int arun, Tuple *alist, int64 *pels)
 { int    *aplot;
   int     i, j, k;
@@ -278,13 +330,6 @@ static int TSORT(const void *l, const void *r)
   return (x->pos - y->pos);
 }
 
-static int BSORT(const void *l, const void *r)
-{ Tuple *x = (Tuple *) l;
-  Tuple *y = (Tuple *) r;
-
-  return (x->pos - y->pos);
-}
-
 void *dotplot_memory()
 { return (malloc(sizeof(Tuple)*2*MAX_KMERS + MAX_DOTPLOT*2 + 8 + sizeof(Dots))); }
 
@@ -298,9 +343,9 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view, double xa, double ya)
   Build_State state;
 
   int    arun, brun;
+  int    athr, bthr;
   int64  nel;
-  int    density;
-  int    width;
+  double density;
 
   int64 vX = view->x;
   int64 vY = view->y;
@@ -313,10 +358,12 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view, double xa, double ya)
   state.scale = xa;
   state.list  = alist;
   arun = build_vector(&(plot->db1->gdb),vX,vX+vW,&state);
+  athr = state.thr;
 
   state.scale = ya;
   state.list  = blist;
   brun = build_vector(&(plot->db2->gdb),vY,vY+vH,&state);
+  bthr = state.thr;
 
   qsort(alist,arun,sizeof(Tuple),TSORT);
   qsort(blist,brun,sizeof(Tuple),TSORT);
@@ -337,35 +384,19 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view, double xa, double ya)
   arun = compress(arun,alist);
   brun = compress(brun,blist);
 
-  brun = merge(brun,blist,arun,alist,&nel);
-
-  density = (int) ((nel/(xa*vW))/(ya*vH));
-
-  width = 0;
-
-  (void) BSORT;
-/*
-  if (density >= SUPER_DENSE)
-    { int i, lpos, lidx;
-
-      qsort(blist,brun,sizeof(Tuple),BSORT);
-
-      lpos = blist[0].pos;
-      lidx = 0;
-      for (i = 1; i < brun; i++)
-        if (blist[i].pos > lpos)
-          { if (i-lidx > width)
-              width = i-lidx;
-            lidx = i;
-            lpos = blist[i].pos;
-          }
-      if (brun-lidx > width)
-        width = brun-lidx;
+  while (1)
+    { nel = count_hits(brun,blist,arun,alist);
+      density = (nel/(xa*vW))/(ya*vH);
+      if (density <= 10.)
+        break;
+      density = sqrt(density/9.);
+      athr /= density;
+      bthr /= density;
+      arun = new_threshold(alist,arun,athr);
+      brun = new_threshold(blist,brun,bthr);
     }
-*/
 
-  // printf("Density = %dx (%.2fM draws)\n",(int) ((nel/(xa*vW))/(ya*vH)),nel/1000000.);
-  // printf("Width   = %d\n",width);
+  brun = merge(brun,blist,arun,alist,&nel);
 
 #ifdef DEBUG_SHOW
   { int i, j;
@@ -383,8 +414,6 @@ Dots *dotplot(DotPlot *plot, int kmer, View *view, double xa, double ya)
   }
 #endif
 
-  dot->density = density;
-  dot->width   = width;
   dot->brun    = brun;
   dot->aplot   = aplot;
   dot->blist   = blist;

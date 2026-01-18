@@ -16,9 +16,7 @@ typedef struct
   } Tuple;
 
 typedef struct
-  { int    density;    //  average # of k-mers per image pixel
-    int    width;      //  max # of B-seq k-mers mapping to a single row (y-coord)
-    int    brun;
+  { int    brun;
     Tuple *blist;
     int   *aplot;
   } Dots;

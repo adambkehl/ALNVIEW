@@ -898,25 +898,27 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
     gdb1 = &_gdb1;
     gdb2 = &_gdb2;
 
-    if (Get_GDB(gdb1,src1_name,cpath,1) == NULL)
+    if (Get_GDB(gdb1,src1_name,cpath,1,NULL) == NULL)
       { if (input->lineType == 'g')
-          Read_Aln_Skeleton(input,src1_name,gdb1);
+          Read_Skeleton(input,src1_name,gdb1);
         else
           goto error1;
       }
+    else
+      Skip_Skeleton(input);
 
     if (src2_name != NULL)
-      { if (Get_GDB(gdb2,src2_name,cpath,1) == NULL)
+      { if (Get_GDB(gdb2,src2_name,cpath,1,NULL) == NULL)
           { if (input->lineType == 'g')
-              Read_Aln_Skeleton(input,src2_name,gdb2);
+              Read_Skeleton(input,src2_name,gdb2);
             else
               goto error1;
           }
+        else
+          Skip_Skeleton(input);
       }
     else
       gdb2 = gdb1;
-
-    Skip_Aln_Skeletons(input);
 
     free(cpath);
     cpath = NULL;
@@ -1136,7 +1138,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
             segs[k].bend = ovl->path.bepos + boff;
           }
 
-        segs[k].iid  = (int) iid;
+        segs[k].iid  = (int) (100.*iid);
         segs[k].idx  = j;
         segs[k].mark = 0;
 
