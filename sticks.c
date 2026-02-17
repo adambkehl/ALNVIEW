@@ -1064,6 +1064,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
             contigs1[c].sbeg += sum;
           sum += scaffs1[s].slen;
         }
+      plot->alen = sum;
   
       if (db1 != db2)
         { sum = 0;
@@ -1075,9 +1076,12 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
               sum += scaffs2[s].slen;
             }
         }
-  
-      plot->alen = contigs1[scaffs1[nscaff1-1].fctg].sbeg + scaffs1[nscaff1-1].slen;
-      plot->blen = contigs2[scaffs2[nscaff2-1].fctg].sbeg + scaffs2[nscaff2-1].slen;
+
+      plot->blen = sum;
+
+      // not correct if final scaffold has prefixing N's
+      // plot->alen = contigs1[scaffs1[nscaff1-1].fctg].sbeg + scaffs1[nscaff1-1].slen;
+      // plot->blen = contigs2[scaffs2[nscaff2-1].fctg].sbeg + scaffs2[nscaff2-1].slen;
     }
 
   //  Add layer

@@ -55,9 +55,9 @@ static int build_segment(int len, char  *seq, int pos, int idx, Build_State *sta
       u = (u >> 2) | cumber[x];
     }
   seq += km1;
+  len -= km1;
 
-  len += pos-km1;
-  for (p = pos; p < len; p++)
+  for (p = 0; p < len; p++)
     { x = seq[p];
       c = ((c << 2) | x) & kmask;
       u = (u >> 2) | cumber[x];
@@ -68,7 +68,7 @@ static int build_segment(int len, char  *seq, int pos, int idx, Build_State *sta
                   idx = new_threshold(list,idx,thr);
                 }
               list[idx].code = u;
-              list[idx++].pos = (((int) (scale*p+22.)) << 1) | 1;
+              list[idx++].pos = (((int) (scale*pos+22.)) << 1) | 1;
             }
         }
       else
@@ -78,9 +78,10 @@ static int build_segment(int len, char  *seq, int pos, int idx, Build_State *sta
                   idx = new_threshold(list,idx,thr);
                 }
               list[idx].code = c;
-              list[idx++].pos = (((int) (scale*p+22.)) << 1);
+              list[idx++].pos = (((int) (scale*pos+22.)) << 1);
             }
         }
+      pos += 1;
     }
 
   state->thr = thr;
