@@ -4743,20 +4743,26 @@ int Transmit_Alignment(void (*reciever)(char *), Alignment *align, Work_Data *ew
   int        *trace = align->path->trace;
   int         tlen  = align->path->tlen;
 
-  char *Abuf, *Bbuf, *Dbuf;
-  char *Tbuf;
-  int   i, j, o;
-  char *a, *b;
-  char  mtag, dtag;
-  int   prefa, prefb;
-  int   aend, bend;
-  int   bcomp, blen;
-  int   acomp, alen;
-  int   sa, sb;
-  int   match, diff;
-  char *N2A;
+  char  *Abuf, *Bbuf, *Dbuf;
+  char  *Tbuf;
+  int    i, j, o;
+  char  *a, *b;
+  char   mtag, dtag;
+  int    prefa, prefb;
+  int    aend, bend;
+  int    bcomp, blen;
+  int    acomp, alen;
+  int    sa, sb;
+  int    match, diff;
+  uint32 ucoord;
+  char  *N2A;
 
   if (trace == NULL) return (0);
+
+  if (coord > 10)
+    ucoord = 10;
+  else
+    ucoord = (uint32) coord;
 
 #ifdef SHOW_TRACE
   fprintf(file,"\nTrace:\n");
@@ -4799,30 +4805,35 @@ int Transmit_Alignment(void (*reciever)(char *), Alignment *align, Work_Data *ew
       if (coord > 0)							\
         { if (sa < aend)						\
             if (acomp)							\
-              sprintf(Tbuf," %*d",coord,alen-sa);			\
+              snprintf(Tbuf,12," %*d ",ucoord,alen-sa);			\
             else							\
-              sprintf(Tbuf," %*d",coord,sa);				\
+              snprintf(Tbuf,12," %*d ",ucoord,sa);			\
           else								\
-            sprintf(Tbuf," %*s",coord,"");				\
-          sprintf(Tbuf+(coord+1)," %s\n",Abuf);				\
+            snprintf(Tbuf,12," %*s ",ucoord,"");			\
           reciever(Tbuf);						\
-          sprintf(Tbuf," %*s %s\n",coord,"",Dbuf);			\
+          reciever(Abuf);						\
+          snprintf(Tbuf,13,"\n %*s ",ucoord,"");			\
           reciever(Tbuf);						\
+          reciever(Dbuf);						\
           if (sb < bend)						\
             if (bcomp)							\
-              sprintf(Tbuf," %*d",coord,blen-sb);			\
+              snprintf(Tbuf,13,"\n %*d ",ucoord,blen-sb);		\
             else							\
-              sprintf(Tbuf," %*d",coord,sb);				\
+              snprintf(Tbuf,13,"\n %*d ",ucoord,sb);			\
           else								\
-            sprintf(Tbuf," %*s",coord,"");				\
-          sprintf(Tbuf+(coord+1)," %s",Bbuf);				\
+            snprintf(Tbuf,13,"\n %*s ",ucoord,"");			\
+          reciever(Tbuf);						\
+          reciever(Bbuf);						\
         }								\
       else								\
-        { sprintf(Tbuf," %s\n",Abuf);					\
-          sprintf(Tbuf," %s\n",Dbuf);					\
-          sprintf(Tbuf," %s",Bbuf);					\
+        { reciever(" ");						\
+          reciever(Abuf);						\
+          reciever("\n ");						\
+          reciever(Dbuf);						\
+          reciever("\n ");						\
+          reciever(Bbuf);						\
         }								\
-      sprintf(Tbuf+(coord+width+2)," %5.1f%%\n",(100.*diff)/(diff+match));	\
+      sprintf(Tbuf," %5.1f%%\n",(100.*diff)/(diff+match));		\
       reciever(Tbuf);							\
       o  = 0;								\
       sa = i-1;								\
@@ -4965,40 +4976,45 @@ int Transmit_Alignment(void (*reciever)(char *), Alignment *align, Work_Data *ew
 
   /* Print remainder of buffered col.s */
 
-  sprintf(Tbuf,"\n");
-  reciever(Tbuf);
+  reciever("\n");
+  Abuf[o] = '\0';
+  Dbuf[o] = '\0';
+  Bbuf[o] = '\0';
   if (coord > 0)
     { if (sa < aend)
         if (acomp)
-          sprintf(Tbuf," %*d",coord,alen-sa);
+          snprintf(Tbuf,12," %*d ",ucoord,alen-sa);
         else
-          sprintf(Tbuf," %*d",coord,sa);
+          snprintf(Tbuf,12," %*d ",ucoord,sa);
       else
-        sprintf(Tbuf," %*s",coord,"");
-      sprintf(Tbuf+(coord+1)," %.*s\n",o,Abuf);
+        snprintf(Tbuf,12," %*s ",ucoord,"");
       reciever(Tbuf);
-      sprintf(Tbuf," %*s %.*s\n",coord,"",o,Dbuf);
+      reciever(Abuf);
+      snprintf(Tbuf,13,"\n %*s ",ucoord,"");
       reciever(Tbuf);
+      reciever(Dbuf);
       if (sb < bend)
         if (bcomp)
-          sprintf(Tbuf," %*d",coord,blen-sb);
+          snprintf(Tbuf,13,"\n %*d ",ucoord,blen-sb);
         else
-          sprintf(Tbuf," %*d",coord,sb);
+          snprintf(Tbuf,13,"\n %*d ",ucoord,sb);
       else
-        sprintf(Tbuf," %*s",coord,"");
-      sprintf(Tbuf+(coord+1)," %.*s",o,Bbuf);
+        snprintf(Tbuf,13," %*s ",ucoord,"");
+      reciever(Tbuf);
+      reciever(Bbuf);
     }
   else
-    { sprintf(Tbuf," %.*s\n",o,Abuf);
-      reciever(Tbuf);
-      sprintf(Tbuf," %.*s\n",o,Dbuf);
-      reciever(Tbuf);
-      sprintf(Tbuf," %.*s",o,Bbuf);
+    { reciever(" ");
+      reciever(Abuf);
+      reciever("\n ");
+      reciever(Dbuf);
+      reciever("\n ");
+      reciever(Bbuf);
     }
   if (diff+match > 0)
-    sprintf(Tbuf+strlen(Tbuf)," %5.1f%%\n",(100.*diff)/(diff+match));
+    sprintf(Tbuf," %5.1f%%\n",(100.*diff)/(diff+match));
   else
-    sprintf(Tbuf+strlen(Tbuf),"\n");
+    sprintf(Tbuf,"\n");
   reciever(Tbuf);
 
   return (0);

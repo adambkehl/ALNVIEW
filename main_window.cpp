@@ -594,7 +594,7 @@ void DotCanvas::mousePressEvent(QMouseEvent *event)
 { mouseX = event->position().toPoint().x();
   mouseY = event->position().toPoint().y();
 #ifdef DEBUG
-  printf("Press %d %d\n",mouseX,mouseY);
+  printf("Press event %d %d\n",mouseX,mouseY);
 #endif
   if (picking)
     return;
@@ -1492,6 +1492,7 @@ AlignWindow::AlignWindow(QString title, char *align, QWidget *parent, Qt::Window
   edit->setReadOnly(true);
   edit->setWordWrapMode(QTextOption::NoWrap);
   edit->setLineWrapMode(QTextEdit::NoWrap);
+  edit->setFont(tr("Monaco"));
 
   setCentralWidget(edit);
   setWindowTitle(title);
@@ -2460,11 +2461,9 @@ void DotWindow::tileImages()
     hmax = screenH / minimH;
     wmin = (tileSize-1) / hmax + 1;
 
-    if (wmin > wmax)
-      { tileW = wmax;
-        tileH = hmax;
-      }
-    else
+    tileW = wmax;
+    tileH = hmax;
+    if (wmin <= wmax)
       { for (int h = 1; h <= hmax; h++)
           { tileH = h;
             tileW = (tileSize-1) / h + 1;

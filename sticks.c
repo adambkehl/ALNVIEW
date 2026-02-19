@@ -998,6 +998,7 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
 
   //  Set up scaffold name dictionary
 
+  hash1 = hash2 = NULL;
   if (model == NULL)
     { int   s;
       char *head, *sptr, *eptr;
