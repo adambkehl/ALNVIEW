@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
+#include <QFontDatabase>
 
 #include <QtGui>
 
@@ -1492,7 +1493,9 @@ AlignWindow::AlignWindow(QString title, char *align, QWidget *parent, Qt::Window
   edit->setReadOnly(true);
   edit->setWordWrapMode(QTextOption::NoWrap);
   edit->setLineWrapMode(QTextEdit::NoWrap);
-  edit->setFont(tr("Monaco"));
+
+  QFont fixed = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+  edit->setFont(fixed);
 
   setCentralWidget(edit);
   setWindowTitle(title);

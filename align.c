@@ -4805,23 +4805,23 @@ int Transmit_Alignment(void (*reciever)(char *), Alignment *align, Work_Data *ew
       if (coord > 0)							\
         { if (sa < aend)						\
             if (acomp)							\
-              snprintf(Tbuf,12," %*d ",ucoord,alen-sa);			\
+              snprintf(Tbuf,13," %*d ",ucoord,alen-sa);			\
             else							\
-              snprintf(Tbuf,12," %*d ",ucoord,sa);			\
+              snprintf(Tbuf,13," %*d ",ucoord,sa);			\
           else								\
-            snprintf(Tbuf,12," %*s ",ucoord,"");			\
+            snprintf(Tbuf,13," %*s ",ucoord,"");			\
           reciever(Tbuf);						\
           reciever(Abuf);						\
-          snprintf(Tbuf,13,"\n %*s ",ucoord,"");			\
+          snprintf(Tbuf,14,"\n %*s ",ucoord,"");			\
           reciever(Tbuf);						\
           reciever(Dbuf);						\
           if (sb < bend)						\
             if (bcomp)							\
-              snprintf(Tbuf,13,"\n %*d ",ucoord,blen-sb);		\
+              snprintf(Tbuf,14,"\n %*d ",ucoord,blen-sb);		\
             else							\
-              snprintf(Tbuf,13,"\n %*d ",ucoord,sb);			\
+              snprintf(Tbuf,14,"\n %*d ",ucoord,sb);			\
           else								\
-            snprintf(Tbuf,13,"\n %*s ",ucoord,"");			\
+            snprintf(Tbuf,14,"\n %*s ",ucoord,"");			\
           reciever(Tbuf);						\
           reciever(Bbuf);						\
         }								\
@@ -4983,23 +4983,23 @@ int Transmit_Alignment(void (*reciever)(char *), Alignment *align, Work_Data *ew
   if (coord > 0)
     { if (sa < aend)
         if (acomp)
-          snprintf(Tbuf,12," %*d ",ucoord,alen-sa);
+          snprintf(Tbuf,13," %*d ",ucoord,alen-sa);
         else
-          snprintf(Tbuf,12," %*d ",ucoord,sa);
+          snprintf(Tbuf,13," %*d ",ucoord,sa);
       else
-        snprintf(Tbuf,12," %*s ",ucoord,"");
+        snprintf(Tbuf,13," %*s ",ucoord,"");
       reciever(Tbuf);
       reciever(Abuf);
-      snprintf(Tbuf,13,"\n %*s ",ucoord,"");
+      snprintf(Tbuf,14,"\n %*s ",ucoord,"");
       reciever(Tbuf);
       reciever(Dbuf);
       if (sb < bend)
         if (bcomp)
-          snprintf(Tbuf,13,"\n %*d ",ucoord,blen-sb);
+          snprintf(Tbuf,14,"\n %*d ",ucoord,blen-sb);
         else
-          snprintf(Tbuf,13,"\n %*d ",ucoord,sb);
+          snprintf(Tbuf,14,"\n %*d ",ucoord,sb);
       else
-        snprintf(Tbuf,13," %*s ",ucoord,"");
+        snprintf(Tbuf,14," %*s ",ucoord,"");
       reciever(Tbuf);
       reciever(Bbuf);
     }
