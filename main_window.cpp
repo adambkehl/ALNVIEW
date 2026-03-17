@@ -1071,7 +1071,7 @@ void DotCanvas::paintEvent(QPaintEvent *event)
             int    kmer, klen;
             Dots  *dot;
 
-            if (state->view.w > MAX_DOTPLOT)
+            if (state->view.w > MAX_DOTPLOT || state->view.h > MAX_DOTPLOT)
               continue;
 
             kmer = state->thick[0]+8;
