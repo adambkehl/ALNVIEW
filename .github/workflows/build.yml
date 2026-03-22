@@ -20,8 +20,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build static binary in Docker
-        run: |
-          docker build --target output --output type=local,dest=dist .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: output
+          push: false
+          outputs: type=local,dest=dist
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Verify binary
         run: |
