@@ -46,7 +46,6 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.9.0'
-          modules: 'qtbase'
 
       - name: Build ALNview
         run: |
