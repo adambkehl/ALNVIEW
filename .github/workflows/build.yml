@@ -1,0 +1,152 @@
+name: Build ALNview
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Linux (static binary)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build static binary in Docker
+        run: |
+          docker build --target output --output type=local,dest=dist .
+
+      - name: Verify binary
+        run: |
+          file dist/ALNview
+          ls -lh dist/ALNview
+          ldd dist/ALNview 2>&1 || true
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALNview-linux-x86_64
+          path: dist/ALNview
+
+  build-macos:
+    name: macOS (DMG)
+    runs-on: macos-14
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.9.0'
+          modules: 'qtbase'
+
+      - name: Build ALNview
+        run: |
+          mkdir build && cd build
+          qmake ../viewer.pro
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Create app bundle with macdeployqt
+        run: |
+          cd build
+          macdeployqt ALNview.app -verbose=2
+
+      - name: Ad-hoc code sign (inside-out)
+        run: |
+          APP="build/ALNview.app"
+
+          # Sign all frameworks from the inside out
+          find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
+            # Sign the actual binary inside the framework
+            binary=$(find "$fw/Versions" -type f -perm +111 ! -name "*.plist" 2>/dev/null | head -1)
+            if [ -n "$binary" ]; then
+              codesign --force --sign - --timestamp=none "$binary"
+            fi
+            # Sign the framework bundle itself
+            codesign --force --sign - --timestamp=none "$fw"
+          done
+
+          # Sign any dylibs
+          find "$APP/Contents/Frameworks" -name "*.dylib" -type f | while read lib; do
+            codesign --force --sign - --timestamp=none "$lib"
+          done
+
+          # Sign all plugins
+          find "$APP/Contents/PlugIns" -name "*.dylib" -type f 2>/dev/null | while read plugin; do
+            codesign --force --sign - --timestamp=none "$plugin"
+          done
+
+          # Sign the main executable
+          codesign --force --sign - --timestamp=none "$APP/Contents/MacOS/ALNview"
+
+          # Sign the entire app bundle
+          codesign --force --sign - --timestamp=none "$APP"
+
+          # Verify
+          codesign --verify --deep --strict "$APP"
+          echo "Code signing verified successfully"
+
+      - name: Create DMG
+        run: |
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg-staging
+          cp -R build/ALNview.app dmg-staging/
+
+          # Create a symlink to /Applications for drag-and-drop install
+          ln -s /Applications dmg-staging/Applications
+
+          # Build DMG
+          hdiutil create -volname "ALNview" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            ALNview.dmg
+
+          ls -lh ALNview.dmg
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALNview-macOS
+          path: ALNview.dmg
+
+  # Create a release when a tag is pushed
+  release:
+    name: Create Release
+    needs: [build-linux, build-macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ALNview-linux-x86_64
+          path: linux
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ALNview-macOS
+          path: macos
+
+      - name: Prepare release assets
+        run: |
+          chmod +x linux/ALNview
+          tar czf ALNview-linux-x86_64.tar.gz -C linux ALNview
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ALNview-linux-x86_64.tar.gz
+            macos/ALNview.dmg
+          generate_release_notes: true

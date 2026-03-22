@@ -1,4 +1,8 @@
-QMAKE_SPEC = macx-clang
+macx {
+  QMAKE_SPEC = macx-clang
+  QMAKE_INFO_PLIST = Info.plist
+}
+
 CONFIG += release
 QMAKE_CXXFLAGS += -fvisibility=hidden -Wall -Wno-unused-result
 QMAKE_CFLAGS += -Wall -Wno-unused-result

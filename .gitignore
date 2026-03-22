@@ -1,0 +1,6 @@
+build-linux/
+dist/
+BUILD/
+.qmake.stash
+Makefile
+*.dmg
