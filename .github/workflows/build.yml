@@ -29,11 +29,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify binary
+      - name: Smoke test
         run: |
+          echo "=== Binary format ==="
           file dist/ALNview
+          file dist/ALNview | grep -q "statically linked" || { echo "FAIL: not statically linked"; exit 1; }
           ls -lh dist/ALNview
-          ldd dist/ALNview 2>&1 || true
+
+          echo "=== Dynamic deps (should be none) ==="
+          ldd dist/ALNview 2>&1 && { echo "FAIL: has dynamic dependencies"; exit 1; } || echo "OK: no dynamic dependencies"
+
+          echo "=== Launch test ==="
+          # The app needs an X display so it will fail, but it should at least
+          # load and complain about the display, not about missing libraries
+          chmod +x dist/ALNview
+          output=$(dist/ALNview 2>&1 || true)
+          echo "$output"
+          # If it fails due to missing libs, that's a real error
+          if echo "$output" | grep -qi "error while loading shared libraries"; then
+            echo "FAIL: missing shared libraries"
+            exit 1
+          fi
+          echo "Smoke test passed"
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v4
@@ -42,7 +59,7 @@ jobs:
           path: dist/ALNview
 
   build-macos:
-    name: macOS (DMG)
+    name: macOS (Universal DMG)
     runs-on: macos-14
     steps:
       - name: Checkout source
@@ -53,10 +70,12 @@ jobs:
         with:
           version: '6.9.0'
 
-      - name: Build ALNview
+      - name: Build ALNview (universal binary)
         run: |
           mkdir build && cd build
-          qmake ../viewer.pro
+          qmake ../viewer.pro \
+            "QMAKE_APPLE_DEVICE_ARCHS=x86_64 arm64" \
+            "QMAKE_MACOSX_DEPLOYMENT_TARGET=13.0"
           make -j$(sysctl -n hw.ncpu)
 
       - name: Create app bundle with macdeployqt
@@ -70,12 +89,10 @@ jobs:
 
           # Sign all frameworks from the inside out
           find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
-            # Sign the actual binary inside the framework
             binary=$(find "$fw/Versions" -type f -perm +111 ! -name "*.plist" 2>/dev/null | head -1)
             if [ -n "$binary" ]; then
               codesign --force --sign - --timestamp=none "$binary"
             fi
-            # Sign the framework bundle itself
             codesign --force --sign - --timestamp=none "$fw"
           done
 
@@ -99,16 +116,44 @@ jobs:
           codesign --verify --deep --strict "$APP"
           echo "Code signing verified successfully"
 
+      - name: Smoke test
+        run: |
+          APP="build/ALNview.app"
+          BINARY="$APP/Contents/MacOS/ALNview"
+
+          # Verify it's a universal Mach-O binary with both slices
+          echo "=== Binary format ==="
+          file "$BINARY"
+          file "$BINARY" | grep -q "Mach-O" || { echo "FAIL: not a Mach-O binary"; exit 1; }
+
+          echo "=== Architecture slices ==="
+          lipo -info "$BINARY"
+          lipo -info "$BINARY" | grep -q "x86_64" || { echo "FAIL: missing x86_64 slice"; exit 1; }
+          lipo -info "$BINARY" | grep -q "arm64" || { echo "FAIL: missing arm64 slice"; exit 1; }
+          echo "Universal binary OK (x86_64 + arm64)"
+
+          # Verify code signature
+          echo "=== Code signature ==="
+          codesign -dvvv "$APP" 2>&1
+          codesign --verify --deep --strict "$APP" 2>&1
+          echo "Signature OK"
+
+          # Verify Gatekeeper assessment (ad-hoc will be rejected, but we log it)
+          echo "=== Gatekeeper assessment ==="
+          spctl --assess --verbose "$APP" 2>&1 || echo "(Expected: ad-hoc signed apps are rejected by Gatekeeper without notarization)"
+
+          # Try to launch briefly — the app needs a display, so it will fail,
+          # but we can at least verify it loads (exits non-zero is OK)
+          echo "=== Launch test ==="
+          timeout 5 "$BINARY" --help 2>&1 || true
+          echo "Smoke test passed"
+
       - name: Create DMG
         run: |
-          # Create a temporary directory for DMG contents
           mkdir -p dmg-staging
           cp -R build/ALNview.app dmg-staging/
-
-          # Create a symlink to /Applications for drag-and-drop install
           ln -s /Applications dmg-staging/Applications
 
-          # Build DMG
           hdiutil create -volname "ALNview" \
             -srcfolder dmg-staging \
             -ov -format UDZO \

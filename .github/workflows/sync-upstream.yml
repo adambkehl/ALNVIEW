@@ -1,0 +1,31 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6am UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/thegenemyers/ALNVIEW.git
+          git fetch upstream
+          # Merge only if there are new commits
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date"
+          else
+            git merge upstream/main --no-edit
+            git push origin main
+          fi
