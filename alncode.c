@@ -201,6 +201,8 @@ int Read_Aln_Trace(OneFile *of, uint8 *trace, int *period)
   while (oneReadLine(of))       // move to start of next alignment
     if (of->lineType == 'A')
       break;
+    else if (of->lineType == 'a' || of->lineType == 'p')
+      continue;
     else if (of->lineType == 'U' && period != NULL)
       *period = oneInt(of,0);
 
@@ -209,12 +211,12 @@ int Read_Aln_Trace(OneFile *of, uint8 *trace, int *period)
 
 int Skip_Aln_Trace(OneFile *of)
 { int    tlen;
-  
+
   if (of->lineType != 'T')
     { EPRINTF("Failed to be at start of trace in Read_Aln_Trace()");
       EXIT(1);
     }
-    
+
   tlen = oneLen(of);
 
   oneReadLine(of);
@@ -230,6 +232,8 @@ int Skip_Aln_Trace(OneFile *of)
   while (oneReadLine(of))       // move to start of next alignment
     if (of->lineType == 'A')
       break;
+    else if (of->lineType == 'a' || of->lineType == 'p')
+      continue;
 
   return (0);
 }
