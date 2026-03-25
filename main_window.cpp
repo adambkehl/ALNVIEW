@@ -135,8 +135,8 @@ DotCanvas::DotCanvas(QWidget *parent) : QWidget(parent)
 
   pimage  = NULL;
   nimage  = NULL;
-  praster = new uchar *[screen()->availableGeometry().height()];
-  nraster = new uchar *[screen()->availableGeometry().height()];
+  praster = new uchar *[QGuiApplication::primaryScreen()->availableGeometry().height()];
+  nraster = new uchar *[QGuiApplication::primaryScreen()->availableGeometry().height()];
 
   setAttribute(Qt::WA_KeyCompression,false);
 
@@ -1613,7 +1613,7 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
   // setAttribute(Qt::WA_DeleteOnClose);
 
   if (screenGeometry == NULL)
-    screenGeometry = new QRect(screen()->availableGeometry());
+    screenGeometry = new QRect(QGuiApplication::primaryScreen()->availableGeometry());
 
   plot = model;
 
