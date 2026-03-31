@@ -32,7 +32,7 @@ int EPRINTF(char *format, ...)
       fprintf(stderr,"\n");
     }
   else
-    rval = vsprintf(Error_Buffer,format,args);
+    rval = vsnprintf(Error_Buffer,ERROR_BUFFER_LEN,format,args);
   va_end(args);
   return (rval);
 }
@@ -45,7 +45,7 @@ int WPRINTF(char *format, ...)
   if (Error_Buffer == NULL)
     rval = vfprintf(stderr,format,args);
   else
-    rval = vsprintf(Error_Buffer,format,args);
+    rval = vsnprintf(Error_Buffer,ERROR_BUFFER_LEN,format,args);
   va_end(args);
   return (rval);
 }

@@ -9,7 +9,7 @@
 
 #include "main_window.h"
 
-static char EMessage[1000];
+static char EMessage[ERROR_BUFFER_LEN];
 
 int main(int argc, char *argv[])
 { Error_Buffer = EMessage;

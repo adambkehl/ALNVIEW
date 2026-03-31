@@ -28,6 +28,8 @@ typedef double             float64;
  *
  ********************************************************************************************/
 
+#define ERROR_BUFFER_LEN 8192
+
 extern char *Error_Buffer;   //  If non-NULL place error messages here
 
 extern char *Prog_Name;   //  Name of program, available everywhere
