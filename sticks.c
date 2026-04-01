@@ -1128,6 +1128,10 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
         if (iid <= iCut)
           continue;
 
+        if (ovl->aread < 0 || ovl->aread >= gdb1->ncontig ||
+            ovl->bread < 0 || ovl->bread >= gdb2->ncontig)
+          continue;
+
         aoff = contigs1[ovl->aread].sbeg;
         segs[k].abeg = ovl->path.abpos + aoff;
         segs[k].aend = ovl->path.aepos + aoff;
