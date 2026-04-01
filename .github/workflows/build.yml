@@ -167,10 +167,80 @@ jobs:
           name: ALNview-macOS
           path: ALNview.dmg
 
+  build-macos-debug:
+    name: macOS Debug (ASan)
+    runs-on: macos-14
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.9.0'
+
+      - name: Build ALNview debug with ASan (x86_64 only)
+        run: |
+          mkdir build-debug && cd build-debug
+          qmake ../viewer.pro \
+            "CONFIG+=asan" \
+            "QMAKE_APPLE_DEVICE_ARCHS=x86_64 arm64" \
+            "QMAKE_MACOSX_DEPLOYMENT_TARGET=13.0"
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Create debug app bundle with macdeployqt
+        run: |
+          cd build-debug
+          macdeployqt ALNview.app -verbose=2
+
+      - name: Ad-hoc code sign (inside-out)
+        run: |
+          APP="build-debug/ALNview.app"
+
+          find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
+            binary=$(find "$fw/Versions" -type f -perm +111 ! -name "*.plist" 2>/dev/null | head -1)
+            if [ -n "$binary" ]; then
+              codesign --force --sign - --timestamp=none "$binary"
+            fi
+            codesign --force --sign - --timestamp=none "$fw"
+          done
+
+          find "$APP/Contents/Frameworks" -name "*.dylib" -type f | while read lib; do
+            codesign --force --sign - --timestamp=none "$lib"
+          done
+
+          find "$APP/Contents/PlugIns" -name "*.dylib" -type f 2>/dev/null | while read plugin; do
+            codesign --force --sign - --timestamp=none "$plugin"
+          done
+
+          codesign --force --sign - --timestamp=none "$APP/Contents/MacOS/ALNview"
+          codesign --force --sign - --timestamp=none "$APP"
+          codesign --verify --deep --strict "$APP"
+          echo "Code signing verified successfully"
+
+      - name: Create debug DMG
+        run: |
+          mkdir -p dmg-debug-staging
+          cp -R build-debug/ALNview.app dmg-debug-staging/
+          ln -s /Applications dmg-debug-staging/Applications
+
+          hdiutil create -volname "ALNview-Debug" \
+            -srcfolder dmg-debug-staging \
+            -ov -format UDZO \
+            ALNview-Debug-ASan.dmg
+
+          ls -lh ALNview-Debug-ASan.dmg
+
+      - name: Upload debug DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALNview-macOS-Debug-ASan
+          path: ALNview-Debug-ASan.dmg
+
   # Create a release when a tag is pushed
   release:
     name: Create Release
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-macos-debug]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
@@ -188,6 +258,12 @@ jobs:
           name: ALNview-macOS
           path: macos
 
+      - name: Download macOS debug artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ALNview-macOS-Debug-ASan
+          path: macos-debug
+
       - name: Prepare release assets
         run: |
           chmod +x linux/ALNview
@@ -199,4 +275,5 @@ jobs:
           files: |
             ALNview-linux-x86_64.tar.gz
             macos/ALNview.dmg
+            macos-debug/ALNview-Debug-ASan.dmg
           generate_release_notes: true

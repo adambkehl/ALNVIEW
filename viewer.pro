@@ -3,7 +3,16 @@ macx {
   QMAKE_INFO_PLIST = Info.plist
 }
 
-CONFIG += release
+asan {
+  CONFIG += debug
+  CONFIG -= release
+  QMAKE_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -g
+  QMAKE_CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer -g
+  QMAKE_LFLAGS += -fsanitize=address
+} else {
+  CONFIG += release
+}
+
 QMAKE_CXXFLAGS += -fvisibility=hidden -Wall -Wno-unused-result
 QMAKE_CFLAGS += -Wall -Wno-unused-result
 QMAKE_LIBS += -lz
