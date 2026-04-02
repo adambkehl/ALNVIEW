@@ -134,7 +134,10 @@ clean_up:
   // Next two routines read the records from the file
 
 int Read_Aln_Overlap(OneFile *of, Overlap *ovl)
-{ if (of->lineType != 'A')
+{ while (of->lineType == 'a' || of->lineType == 'p')
+    if (!oneReadLine(of))
+      break;
+  if (of->lineType != 'A')
     { EPRINTF("Failed to be at start of alignment in Read_Aln_Overlap()");
       EXIT(1);
     }
