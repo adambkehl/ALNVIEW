@@ -12,13 +12,22 @@
 static char EMessage[ERROR_BUFFER_LEN];
 
 int main(int argc, char *argv[])
-{ Error_Buffer = EMessage;
+{ char *alnPath = NULL;
+
+  Error_Buffer = EMessage;
+
+  //  Save file argument before QApplication modifies argc/argv
+  if (argc > 1)
+    alnPath = argv[1];
 
   QApplication app(argc, argv);
 
   DotWindow::openDialog = new OpenDialog(NULL);
 
-  DotWindow::openFile();
+  if (alnPath != NULL)
+    DotWindow::openPath(alnPath);
+  else
+    DotWindow::openFile();
 
   return app.exec();
 }

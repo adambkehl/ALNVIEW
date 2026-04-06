@@ -4,3 +4,4 @@ BUILD/
 .qmake.stash
 Makefile
 *.dmg
+annotations/

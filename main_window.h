@@ -8,6 +8,7 @@
 extern "C" {
 #include "GDB.h"
 #include "sticks.h"
+#include "annotation.h"
 }
 
 class DotCanvas;
@@ -52,6 +53,19 @@ typedef struct
   QStack<double>  zMag;
   QStack<double>  zXct;
   QStack<double>  zYct;
+
+  bool            axisNames;
+  bool            anoViz;
+
+  //  Per-track annotation settings
+  //  0=structural (cen/tel/cyto), 1=genes, 2=segdup, 3=repeats
+
+  #define ANO_NUM_TRACKS 4
+
+  bool            anoTrackOn[ANO_NUM_TRACKS];
+  int             anoPosition;    //  0=inside-left, 1=inside-right, 2=center-translucent
+  int             anoOpacity;     //  0-100 percent
+  int             anoGeneLanes;   //  1-5
 
 } DotState;
 
@@ -127,7 +141,12 @@ public:
   ~DotCanvas();
 
   Frame *shareData(DotState *state, DotPlot *plot);
+  void   shareAnnot(AnnotTrack *tracks, int ntracks, int axis);
   bool   zoomView(double zoomDel);
+
+  AnnotTrack  *annotTracks;
+  int          nAnnotTracks;
+  int          annotAxis;       //  0 = X axis (db1), 1 = Y axis (db2)
   void   resetView();
   bool   viewToFrame();
 
@@ -277,6 +296,7 @@ public:
 
 public slots:
   static void openFile();
+  static void openPath(const char *path);
 
   void zoomUp();
   void zoomDown();
@@ -294,6 +314,13 @@ public slots:
 
   void locatorChange();
   void locatorColorChange();
+
+  void annotChange();
+  void openAnnotFile();
+  void anoTrackToggle();
+  void anoPositionChange(int index);
+  void anoOpacityChange(int value);
+  void anoLanesChange(int value);
 
   void openOverlay();
   void openCopy();
@@ -327,6 +354,7 @@ private:
   void writeSettings();
 
   void pushState();
+  void loadAnnotations();
 
   DotPlot            *plot;
   Frame              *frame;
@@ -381,6 +409,14 @@ private:
   QToolButton        *locatorBox;
   QCheckBox          *locatorCheck;
   QButtonGroup       *locatorQuad;
+
+  QCheckBox          *annotCheck;
+  QCheckBox          *anoTrackCheck[ANO_NUM_TRACKS];
+  QComboBox          *anoPosCombo;
+  QSlider            *anoOpacSlider;
+  QSpinBox           *anoLanesSpin;
+
+  QAction *loadAnnotAct;
 
   QList<AlignWindow *> alignWindows;
 };

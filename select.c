@@ -132,7 +132,7 @@ static int follow[128] =      //  isspace !isprint + - . :
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 0, 0, 0, 0, 0, 0, 0,
 
-    0, 0, 0, 1, 0, 1, 1, 0,
+    0, 0, 0, 0, 0, 1, 1, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 1, 0, 0, 0, 0, 0,
@@ -469,11 +469,12 @@ static int complete_address(int64 *v, GDB *gdb, int first)
               p = contig[c].clen;
             }
           else
-            { for (c = fc; c < ec; c++)
-                if (p < contig[c].sbeg)
+            { int64 scaf_off = contig[fc].sbeg;
+              for (c = fc; c < ec; c++)
+                if (p < contig[c].sbeg - scaf_off)
                   break;
               c -= 1;
-              p -= contig[c].sbeg;
+              p -= (contig[c].sbeg - scaf_off);
               if (c == ec-1 && p > contig[c].clen + v[3])
                 { EPRINTF("Position %lld is beyond scaffold %lld of length %lld",
                                  q,s,scaff[s].slen);

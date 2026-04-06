@@ -12,6 +12,7 @@
 #include "alncode.h"
 #include "gene_core.h"
 #include "GDB.h"
+#include "annotation.h"
 
 #undef DEBUG_ADD
 #undef DEBUG_FIND
@@ -1049,6 +1050,10 @@ DotPlot *createPlot(char *alnPath, int lCut, int iCut, int sCut, DotPlot *model)
   
       db1->hash = hash1;
       db2->hash = hash2;
+
+      Add_Chrom_Aliases(hash1, gdb1);
+      if (hash2 != hash1)
+        Add_Chrom_Aliases(hash2, gdb2);
     }
 
   //  Adjust to global coords

@@ -179,9 +179,18 @@ DotCanvas::DotCanvas(QWidget *parent) : QWidget(parent)
 Frame *DotCanvas::shareData(DotState *s, DotPlot *p)
 { state = s;
   plot  = p;
+  annotTracks  = NULL;
+  nAnnotTracks = 0;
+  annotAxis    = 0;
   if (plot->db1->gdb.seqs == NULL || plot->db2->gdb.seqs == NULL)
     popup->actions().at(2)->setEnabled(false);
   return (&frame);
+}
+
+void DotCanvas::shareAnnot(AnnotTrack *tracks, int ntracks, int axis)
+{ annotTracks  = tracks;
+  nAnnotTracks = ntracks;
+  annotAxis    = axis;
 }
 
 #define ASSIGN(frame,fx,fy,fw,fh)	\
@@ -341,6 +350,9 @@ void DotCanvas::resetView()
 
 bool DotCanvas::viewToFrame()
 { double vX, vY, vW, vH;
+
+  if (state->view.w <= 0 || state->view.h <= 0)
+    return (false);
 
   double h = (1.*rectW)/state->view.w;
   double v = (1.*rectH)/state->view.h;
@@ -717,6 +729,10 @@ void DotCanvas::mouseReleaseEvent(QMouseEvent *event)
       printf("Region select (%d,%d) %d x %d\n",reg.x(),reg.y(),reg.width(),reg.height());
       printf("      = view  (%lld,%lld) (%lld,%lld)\n",xb,yb,xe,ye);
 #endif
+      if (state->view.w <= 0 || state->view.h <= 0)
+        { select = false;
+          return;
+        }
       viewToFrame();
       repaint();
     }
@@ -863,70 +879,156 @@ void DotCanvas::paintEvent(QPaintEvent *event)
 
     painter.drawRect(b,c,w,h);
 
-    den  = (double) digits((int64) state->view.w, &suf, &prec);
+    if (state->axisNames)
 
-    unit = divide_bar((int) ((100./(rectW-40.))*vW));
+      //  Chromosome name axis labels
 
-    if (vX < 0)
-      { y = plot->alen;
-        o = 0;
+      { GDB_SCAFFOLD *scf1 = plot->db1->gdb.scaffolds;
+        GDB_CONTIG   *ctg1 = plot->db1->gdb.contigs;
+        int           ns1  = plot->db1->gdb.nscaff;
+
+        painter.drawLine(b,c,b,c-4);
+        painter.drawLine(b,c,b-4,c);
+
+        //  X-axis: chromosome names for db1
+
+        for (int si = 0; si < ns1; si++)
+          { int64 scaf_start = ctg1[scf1[si].fctg].sbeg;
+            int64 scaf_end   = scaf_start + scf1[si].slen;
+            int64 v1 = (int64)(xa * scaf_start + xb);
+            int64 v2 = (int64)(xa * scaf_end + xb);
+
+            if (v2 < b || v1 > b + w)
+              continue;
+
+            //  Draw tick at scaffold boundary
+
+            if (v1 >= b && v1 <= b + w)
+              painter.drawLine(v1, c, v1, c-4);
+
+            //  Draw chromosome name centered in visible portion
+
+            int64 vis_l = (v1 < b) ? b : v1;
+            int64 vis_r = (v2 > b+w) ? b+w : v2;
+            int64 cw = vis_r - vis_l;
+
+            if (cw > 20)
+              { const char *alias = Chrom_Alias(&(plot->db1->gdb), si);
+                const char *name = alias ? alias :
+                    plot->db1->gdb.headers + scf1[si].hoff;
+                painter.drawText(QRect(vis_l, c-10, cw, 8),
+                    Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                    tr("%1").arg(name));
+              }
+          }
+
+        //  Y-axis: chromosome names for db2 (rotated)
+
+        GDB_SCAFFOLD *scf2 = plot->db2->gdb.scaffolds;
+        GDB_CONTIG   *ctg2 = plot->db2->gdb.contigs;
+        int           ns2  = plot->db2->gdb.nscaff;
+
+        painter.save();
+        painter.rotate(-90.);
+
+        for (int si = 0; si < ns2; si++)
+          { int64 scaf_start = ctg2[scf2[si].fctg].sbeg;
+            int64 scaf_end   = scaf_start + scf2[si].slen;
+            int64 v1 = (int64)(ya * scaf_start + yb);
+            int64 v2 = (int64)(ya * scaf_end + yb);
+
+            if (v2 < c || v1 > c + h)
+              continue;
+
+            if (v1 >= c && v1 <= c + h)
+              painter.drawLine(-v1, b, -v1, b-4);
+
+            int64 vis_l = (v1 < c) ? c : v1;
+            int64 vis_r = (v2 > c+h) ? c+h : v2;
+            int64 cw = vis_r - vis_l;
+
+            if (cw > 20)
+              { const char *alias = Chrom_Alias(&(plot->db2->gdb), si);
+                const char *name = alias ? alias :
+                    plot->db2->gdb.headers + scf2[si].hoff;
+                painter.drawText(QRect(-vis_r, b-10, cw, 8),
+                    Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                    tr("%1").arg(name));
+              }
+          }
+
+        painter.restore();
       }
+
     else
-      { y = vW;
-        o = vX;
-      }
-    painter.drawLine(b,c,b,c-4);
-    painter.drawLine(b,c,b-4,c);
-    painter.drawText(QRect(b-21,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
-                     tr("0%2").arg(suf));
-    for (x = unit; x < y; x += unit)
-      { v = xb+xa*(x+o);
-        painter.drawLine(v,c,v,c-4);
-        if (v+40 > b+w)
-          { if ((b+w)-v >= labelWidth/2 && unit*xa >= 1.5*labelWidth)
-              painter.drawText(QRect(v-50,c-8,50,4),Qt::AlignRight|Qt::AlignBottom|Qt::TextDontClip,
+
+      //  Standard base pair tick labels
+
+      { den  = (double) digits((int64) state->view.w, &suf, &prec);
+
+        unit = divide_bar((int) ((100./(rectW-40.))*vW));
+
+        if (vX < 0)
+          { y = plot->alen;
+            o = 0;
+          }
+        else
+          { y = vW;
+            o = vX;
+          }
+        painter.drawLine(b,c,b,c-4);
+        painter.drawLine(b,c,b-4,c);
+        painter.drawText(QRect(b-21,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                         tr("0%2").arg(suf));
+        for (x = unit; x < y; x += unit)
+          { v = xb+xa*(x+o);
+            painter.drawLine(v,c,v,c-4);
+            if (v+40 > b+w)
+              { if ((b+w)-v >= labelWidth/2 && unit*xa >= 1.5*labelWidth)
+                  painter.drawText(QRect(v-50,c-8,50,4),Qt::AlignRight|Qt::AlignBottom|Qt::TextDontClip,
+                                   tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
+              }
+            else
+              painter.drawText(QRect(v-10,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
                                tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
           }
-        else
-          painter.drawText(QRect(v-10,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
-                           tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
-      }
-    v = xb+xa*(y+o);
-    painter.drawLine(v,c,v,c-4);
-    painter.drawText(QRect(v-10,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
-                     tr("%1%2").arg(y/den,0,'f',prec).arg(suf));
+        v = xb+xa*(y+o);
+        painter.drawLine(v,c,v,c-4);
+        painter.drawText(QRect(v-10,c-8,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                         tr("%1%2").arg(y/den,0,'f',prec).arg(suf));
 
-    painter.save();
-    painter.rotate(-90.);
+        painter.save();
+        painter.rotate(-90.);
 
-    if (vY < 0)
-      { y = plot->blen;
-        o = 0;
-      }
-    else
-      { y = vH;
-        o = vY;
-      }
-    v = yb;
-    painter.drawLine(-v,b,-v,b-4);
-    for (x = unit; x < y; x += unit)
-      { v = yb+ya*(x+o);
-        painter.drawLine(-v,b,-v,b-4);
-        if (v+40 > c+h)
-          { if ((c+h)-v >= labelWidth/2 && unit*ya >= 1.5*labelWidth)
-              painter.drawText(QRect(-v,b-9,50,4),Qt::AlignLeft|Qt::AlignBottom|Qt::TextDontClip,
-                         tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
+        if (vY < 0)
+          { y = plot->blen;
+            o = 0;
           }
         else
-          painter.drawText(QRect(-v-10,b-9,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
-                           tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
-      }
-    v = yb+ya*(y+o);
-    painter.drawLine(-v,b,-v,b-4);
-    painter.drawText(QRect(-v-10,b-9,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
-                     tr("%1%2").arg(y/den,0,'f',prec).arg(suf));
+          { y = vH;
+            o = vY;
+          }
+        v = yb;
+        painter.drawLine(-v,b,-v,b-4);
+        for (x = unit; x < y; x += unit)
+          { v = yb+ya*(x+o);
+            painter.drawLine(-v,b,-v,b-4);
+            if (v+40 > c+h)
+              { if ((c+h)-v >= labelWidth/2 && unit*ya >= 1.5*labelWidth)
+                  painter.drawText(QRect(-v,b-9,50,4),Qt::AlignLeft|Qt::AlignBottom|Qt::TextDontClip,
+                             tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
+              }
+            else
+              painter.drawText(QRect(-v-10,b-9,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                               tr("%1%2").arg(x/den,0,'f',prec).arg(suf));
+          }
+        v = yb+ya*(y+o);
+        painter.drawLine(-v,b,-v,b-4);
+        painter.drawText(QRect(-v-10,b-9,20,4),Qt::AlignHCenter|Qt::AlignBottom|Qt::TextDontClip,
+                         tr("%1%2").arg(y/den,0,'f',prec).arg(suf));
 
-    painter.restore();
+        painter.restore();
+      }
   }
 
   int64 cxb, cxe;  // Clipping rectangle
@@ -947,6 +1049,371 @@ void DotCanvas::paintEvent(QPaintEvent *event)
   cye = yb + plot->blen*ya;
   if (cye > rectH-22)
     cye = rectH-22;
+
+  //  Draw annotation tracks BEFORE setting the tight clip region.
+  //  Set a clip region for annotations that extends to the full canvas
+  //  along the genome axis (so features at genome boundaries are partially
+  //  drawn rather than fully hidden) but is constrained to the annotation
+  //  strip in the perpendicular direction.
+
+  //  Draw annotation tracks along axes (IGV-style multi-row layout)
+  //
+  //  Layout — each enabled track gets its own non-overlapping row:
+  //    Structural (6px):  centromeres, telomeres, cytobands
+  //    Genes      (N lanes × 10px): gene bodies packed into lanes, labels above each
+  //    Seg. Dups  (6px):  segmental duplications
+  //    Repeats    (4px):  repeats, genome features
+  //
+  //  Position: 0=edge (at axis), 1=center (translucent overlay)
+
+  #define STRUCT_ROW_H  6
+  #define GENE_LANE_H   7
+  #define GENE_LABEL_H  8
+  #define MAX_GENE_LANES 5
+  #define SEGDUP_ROW_H  6
+  #define REPEAT_ROW_H  4
+  #define ROW_GAP       1
+
+  if (state->anoViz && annotTracks != NULL && nAnnotTracks > 0)
+    { GDB *anno_gdb = (annotAxis == 0) ? &(plot->db1->gdb) : &(plot->db2->gdb);
+
+      double view_width = (annotAxis == 0) ? vW : vH;
+      double a_scale    = (annotAxis == 0) ? xa : ya;
+      double a_offset   = (annotAxis == 0) ? xb : yb;
+      int64  view_beg   = (annotAxis == 0) ? (int64) vX : (int64) vY;
+      int64  view_end   = view_beg + (int64) view_width;
+      if (view_beg < 0) view_beg = 0;
+
+      int alpha = (int)(state->anoOpacity * 255 / 100);
+
+      //  Compute row offsets — only enabled tracks get space
+      //  Gene track uses multiple lanes so genes don't overlap
+
+      int num_lanes = state->anoGeneLanes;
+      if (num_lanes < 1) num_lanes = 1;
+      if (num_lanes > MAX_GENE_LANES) num_lanes = MAX_GENE_LANES;
+      int gene_track_h = num_lanes * (GENE_LANE_H + GENE_LABEL_H);
+      int row_h[ANO_NUM_TRACKS] = { STRUCT_ROW_H, gene_track_h, SEGDUP_ROW_H, REPEAT_ROW_H };
+      int row_y[ANO_NUM_TRACKS];
+      int total_h = 0;
+
+      for (int t = 0; t < ANO_NUM_TRACKS; t++)
+        { if (state->anoTrackOn[t])
+            { row_y[t] = total_h;
+              total_h += row_h[t] + ROW_GAP;
+            }
+          else
+            row_y[t] = -1;
+        }
+      if (total_h > 0)
+        total_h -= ROW_GAP;   //  no trailing gap
+
+      //  Determine base position
+
+      int base;
+      if (state->anoPosition == 1)   //  center
+        { if (annotAxis == 0)
+            base = (cyb + cye) / 2 - total_h / 2;
+          else
+            base = (cxb + cxe) / 2 - total_h / 2;
+        }
+      else                           //  edge (at axis line)
+        { base = (annotAxis == 0) ? (int) cyb : (int) cxb;
+        }
+
+      //  Clip to the annotation strip: full canvas width along genome axis,
+      //  but only the strip height perpendicular to it.
+
+      if (annotAxis == 0)
+        painter.setClipRegion(QRect(0, base, rectW, total_h));
+      else
+        painter.setClipRegion(QRect(base, 0, total_h, rectH));
+
+      //  Track background
+
+      QColor bgColor(15, 15, 25, alpha);
+      if (annotAxis == 0)
+        painter.fillRect(cxb, base, cxe - cxb, total_h, bgColor);
+      else
+        painter.fillRect(base, cyb, total_h, cye - cyb, bgColor);
+
+      //  Separators between rows
+
+      { QPen sepPen(QColor(50, 50, 70, alpha));
+        sepPen.setWidth(1);
+        painter.setPen(sepPen);
+        for (int t = 0; t < ANO_NUM_TRACKS - 1; t++)
+          { if (!state->anoTrackOn[t] || !state->anoTrackOn[t+1])
+              continue;
+            int sy = base + row_y[t] + row_h[t];
+            if (annotAxis == 0)
+              painter.drawLine(cxb, sy, cxe, sy);
+            else
+              painter.drawLine(sy, cyb, sy, cye);
+          }
+      }
+
+      //  Lane packing state for genes: track the rightmost pixel used
+      //  in each lane (for gene bodies and for labels separately)
+
+      int lane_end[MAX_GENE_LANES];
+      int label_end[MAX_GENE_LANES];
+      for (int l = 0; l < num_lanes; l++)
+        { lane_end[l]  = -9999;
+          label_end[l] = -9999;
+        }
+
+      //  Map from gene feature index → assigned lane (for exon/CDS/UTR lookup)
+      //  We use a simple ring buffer of recent gene assignments
+
+      #define GENE_MAP_SIZE 256
+      struct { int64 beg; int64 end; int lane; } gene_lane_map[GENE_MAP_SIZE];
+      int gene_map_count = 0;
+
+      QFont origFont = painter.font();
+      QFont labelFont = origFont;
+      labelFont.setPointSize(7);
+
+      //  Helper macro: draw a filled rect in the correct axis orientation
+
+      #define FILL_ANNOT(pos, ry, rh, color)                     \
+        if (annotAxis == 0)                                      \
+          painter.fillRect(p1, base + ry + pos, pw, rh, color);  \
+        else                                                     \
+          painter.fillRect(base + ry + pos, p1, rh, pw, color)
+
+      for (int ti = 0; ti < nAnnotTracks; ti++)
+        { GenomeFeature *feats;
+          int nf;
+
+          nf = Query_Track(&annotTracks[ti], anno_gdb, view_beg, view_end, &feats);
+          if (nf <= 0)
+            continue;
+
+          char *label_pool = annotTracks[ti].labels;
+
+          for (int fi = 0; fi < nf; fi++)
+            { GenomeFeature *f = &feats[fi];
+
+              //  Clamp to screen bounds to prevent int overflow in pw
+              double dp1 = f->beg * a_scale + a_offset;
+              double dp2 = f->end * a_scale + a_offset;
+              int screen_max = (annotAxis == 0) ? rectW : rectH;
+              int p1 = (dp1 < -1000.) ? -1000 : (dp1 > screen_max + 1000.) ? screen_max + 1000 : (int) dp1;
+              int p2 = (dp2 < -1000.) ? -1000 : (dp2 > screen_max + 1000.) ? screen_max + 1000 : (int) dp2;
+              int pw = p2 - p1;
+
+              if (pw < 1) continue;
+
+              //  ---- Track 0: Structural (centromere/telomere/cytoband) ----
+
+              if (f->type == FEAT_CENTROMERE || f->type == FEAT_TELOMERE ||
+                  f->type == FEAT_SATELLITE || f->type == FEAT_CYTOBAND)
+                { if (!state->anoTrackOn[0]) continue;
+                  int ry = row_y[0];
+
+                  if (f->type == FEAT_CYTOBAND)
+                    { char *lbl = (f->label >= 0) ? label_pool + f->label : NULL;
+                      int shade = (lbl != NULL && strlen(lbl) > 0 &&
+                                   lbl[strlen(lbl)-1] >= '5') ? 100 : 65;
+                      QColor c(shade, shade, shade + 10, alpha);
+                      FILL_ANNOT(0, ry, STRUCT_ROW_H, c);
+                    }
+                  else
+                    { QColor c;
+                      if (f->type == FEAT_CENTROMERE)
+                        c = QColor(180, 40, 40, alpha);
+                      else if (f->type == FEAT_TELOMERE)
+                        c = QColor(40, 180, 80, alpha);
+                      else
+                        c = QColor(160, 140, 40, alpha);
+                      FILL_ANNOT(0, ry, STRUCT_ROW_H, c);
+                    }
+                  continue;
+                }
+
+              //  ---- Track 1: Genes (lane-packed) ----
+
+              if (f->type == FEAT_GENE || f->type == FEAT_EXON ||
+                  f->type == FEAT_CDS || f->type == FEAT_UTR5 ||
+                  f->type == FEAT_UTR3 || f->type == FEAT_MRNA)
+                { if (!state->anoTrackOn[1]) continue;
+                  if (view_width > 500000000) continue;
+                  int gy = row_y[1];   //  base of gene track
+
+                  if (f->type == FEAT_MRNA) continue;
+
+                  if (f->type == FEAT_GENE)
+                    { //  Assign this gene to a lane using greedy packing
+                      //  Use unclamped position for overlap test so genes
+                      //  starting off-screen don't falsely collide with
+                      //  on-screen genes
+
+                      double raw_p1 = f->beg * a_scale + a_offset;
+                      int lane = -1;
+                      for (int l = 0; l < num_lanes; l++)
+                        { if (raw_p1 > lane_end[l] + 2)
+                            { lane = l;
+                              break;
+                            }
+                        }
+                      if (lane < 0)
+                        continue;   //  all lanes full, skip this gene
+
+                      lane_end[lane] = p2;
+
+                      //  Record this gene's lane for exon/CDS/UTR sub-features
+
+                      int mi = gene_map_count % GENE_MAP_SIZE;
+                      gene_lane_map[mi].beg  = f->beg;
+                      gene_lane_map[mi].end  = f->end;
+                      gene_lane_map[mi].lane = lane;
+                      gene_map_count++;
+
+                      //  Compute this lane's y position
+
+                      int lane_y = gy + lane * (GENE_LANE_H + GENE_LABEL_H);
+                      int body_y = lane_y + GENE_LABEL_H;  //  label above body
+                      int mid_y  = body_y + GENE_LANE_H / 2;
+
+                      QColor geneColor(70, 130, 220, alpha);
+
+                      //  Thin gene body line (2px)
+                      if (annotAxis == 0)
+                        painter.fillRect(p1, base + mid_y - 1, pw, 2, geneColor);
+                      else
+                        painter.fillRect(base + mid_y - 1, p1, 2, pw, geneColor);
+
+                      //  Strand arrows along gene body
+                      if (pw > 12)
+                        { QPen arrowPen(QColor(110, 170, 255, alpha));
+                          arrowPen.setWidth(1);
+                          painter.setPen(arrowPen);
+                          int step = (pw < 60) ? pw : 20;
+                          int dir = (f->strand == 1) ? -1 : 1;
+                          int mid = base + mid_y;
+
+                          for (int ap = p1 + step/2; ap < p2 - 4; ap += step)
+                            { if (annotAxis == 0)
+                                { painter.drawLine(ap, mid, ap + 3*dir, mid - 3);
+                                  painter.drawLine(ap, mid, ap + 3*dir, mid + 3);
+                                }
+                              else
+                                { painter.drawLine(mid, ap, mid - 3, ap + 3*dir);
+                                  painter.drawLine(mid, ap, mid + 3, ap + 3*dir);
+                                }
+                            }
+                        }
+
+                      //  Gene name label (in this lane's label area, deconflicted per lane)
+                      if (f->label >= 0 && view_width < 50000000)
+                        { char *gene_lbl = label_pool + f->label;
+                          painter.setFont(labelFont);
+                          QFontMetrics fm(labelFont);
+                          int tw = fm.horizontalAdvance(tr(gene_lbl));
+                          int lx = (p1 + p2) / 2 - tw / 2;
+
+                          //  Clamp label to visible portion of the gene so it
+                          //  stays on-screen when the gene extends past the viewport
+                          int vis_lo = (annotAxis == 0) ? (int) cxb : (int) cyb;
+                          int vis_hi = (annotAxis == 0) ? (int) cxe : (int) cye;
+                          if (lx < vis_lo) lx = vis_lo;
+                          if (lx + tw > vis_hi) lx = vis_hi - tw;
+
+                          if (lx > label_end[lane] + 4)
+                            { painter.setPen(QColor(200, 210, 230, alpha));
+                              if (annotAxis == 0)
+                                painter.drawText(lx, base + lane_y + GENE_LABEL_H - 1,
+                                                 tr(gene_lbl));
+                              else
+                                { painter.save();
+                                  painter.translate(base + lane_y + GENE_LABEL_H - 1, lx + tw);
+                                  painter.rotate(-90.);
+                                  painter.drawText(0, 0, tr(gene_lbl));
+                                  painter.restore();
+                                }
+                              label_end[lane] = lx + tw;
+                            }
+                        }
+                    }
+                  else if (view_width < 10000000)
+                    { //  Exon/CDS/UTR sub-structure — find parent gene's lane
+
+                      int lane = 0;
+                      for (int mi = gene_map_count - 1;
+                           mi >= 0 && mi >= gene_map_count - GENE_MAP_SIZE; mi--)
+                        { int idx = mi % GENE_MAP_SIZE;
+                          if (f->beg >= gene_lane_map[idx].beg &&
+                              f->end <= gene_lane_map[idx].end)
+                            { lane = gene_lane_map[idx].lane;
+                              break;
+                            }
+                        }
+
+                      int lane_y = gy + lane * (GENE_LANE_H + GENE_LABEL_H);
+                      int body_y = lane_y + GENE_LABEL_H;
+
+                      if (f->type == FEAT_EXON)
+                        { QColor c(70, 130, 220, alpha);
+                          if (annotAxis == 0)
+                            painter.fillRect(p1, base + body_y + 1, pw, GENE_LANE_H - 2, c);
+                          else
+                            painter.fillRect(base + body_y + 1, p1, GENE_LANE_H - 2, pw, c);
+                        }
+                      else if (f->type == FEAT_CDS)
+                        { QColor c(50, 110, 200, alpha);
+                          if (annotAxis == 0)
+                            painter.fillRect(p1, base + body_y, pw, GENE_LANE_H, c);
+                          else
+                            painter.fillRect(base + body_y, p1, GENE_LANE_H, pw, c);
+                        }
+                      else
+                        { QColor c(100, 140, 190, alpha);
+                          int inset = GENE_LANE_H / 4;
+                          if (annotAxis == 0)
+                            painter.fillRect(p1, base + body_y + inset, pw,
+                                             GENE_LANE_H - 2*inset, c);
+                          else
+                            painter.fillRect(base + body_y + inset, p1,
+                                             GENE_LANE_H - 2*inset, pw, c);
+                        }
+                    }
+                  continue;
+                }
+
+              //  ---- Track 2: Segmental Duplications ----
+
+              if (f->type == FEAT_SEGDUP)
+                { if (!state->anoTrackOn[2]) continue;
+                  if (view_width > 500000000) continue;
+                  int ry = row_y[2];
+                  QColor c(200, 120, 0, alpha);
+                  FILL_ANNOT(0, ry, SEGDUP_ROW_H, c);
+                  continue;
+                }
+
+              //  ---- Track 3: Repeats / Genome Features ----
+
+              if (f->type == FEAT_REPEAT || f->type == FEAT_GENOME_FEATURE ||
+                  f->type == FEAT_OTHER)
+                { if (!state->anoTrackOn[3]) continue;
+                  if (view_width > 500000000) continue;
+                  int ry = row_y[3];
+                  QColor c = (f->type == FEAT_REPEAT)
+                               ? QColor(80, 70, 60, alpha)
+                               : QColor(90, 80, 120, alpha);
+                  if (pw >= 2)
+                    { FILL_ANNOT(0, ry, REPEAT_ROW_H, c); }
+                  continue;
+                }
+            }
+        }
+
+      #undef FILL_ANNOT
+      painter.setFont(origFont);
+    }
+
+  //  Now set the tight clip region for alignment/scaffold rendering
 
   painter.setClipRegion(QRect(cxb,cyb,cxe-cxb,cye-cyb));
 
@@ -1577,6 +2044,32 @@ tryagain:
   dotwindows += dot;
 }
 
+void DotWindow::openPath(const char *path)   // static
+{ DotState  *sptr;
+  DotPlot   *plot;
+
+  plot = createPlot((char *) path, -1, -1, -1, NULL);
+  if (plot == NULL)
+    { DotWindow::warning(tr(Error_Buffer),NULL,DotWindow::ERROR,tr("OK"));
+      QApplication::quit();
+      exit(1);
+    }
+  if (plot->db1->gdb.seqs == NULL)
+    DotWindow::warning(tr("Could not find source for %1, alignments & dot-plot disabled").arg(plot->db1->name),NULL,DotWindow::ERROR,tr("OK"));
+  else if (plot->db1 != plot->db2 && plot->db2->gdb.seqs == NULL)
+    DotWindow::warning(tr("Could not find source for %1, alignments & dot-plot disabled").arg(plot->db2->name),NULL,DotWindow::ERROR,tr("OK"));
+
+  if (dotwindows.length() == 0)
+    sptr = NULL;
+  else
+    sptr = & dotwindows.at(dotwindows.length()-1)->state;
+  DotWindow *dot = new DotWindow(plot,sptr,0);
+  dot->raise();
+  dot->show();
+
+  dotwindows += dot;
+}
+
 void DotWindow::openOverlay()
 { Open_State ostate;
   DotPlot   *nplot;
@@ -1606,6 +2099,194 @@ DotWindow::~DotWindow()
     Free_DotPlot(plot);
   printf("Deleting %p\n",plot); fflush(stdout);
 }
+
+
+/*******************************************************************************************
+ *
+ *  ANNOTATION LOADING AND CONTROLS
+ *
+ ********************************************************************************************/
+
+#define MAX_ANNOT_TRACKS 8
+
+static struct { const char *suffix; FeatureType type; } annot_files[] =
+  { { "RefSeq_Liftoff_v5.2.gff3.gz",        FEAT_GENE },
+    { "censat_v2.1.bed",                     FEAT_CENTROMERE },
+    { "cytobands_allchrs.bed",               FEAT_CYTOBAND },
+    { "telomere.bed",                        FEAT_TELOMERE },
+    { "GenomeFeature_v1.0.bed",              FEAT_GENOME_FEATURE },
+    { "SD.bed",                              FEAT_SEGDUP },
+    { "composite-repeats_2022DEC.bed",       FEAT_REPEAT },
+    { "new-satellites_2022DEC.bed",          FEAT_SATELLITE },
+  };
+
+void DotWindow::loadAnnotations()
+{ int   axis, n;
+  GDB  *gdb;
+  Hash_Table *hash;
+  QString base_dir;
+
+  //  Detect which axis (if any) has CHM13 v2.0
+  //  After Add_Chrom_Aliases, headers are rewritten to "chr1" etc.
+
+  axis = -1;
+  if (Hash_Lookup((Hash_Table *) plot->db1->hash, (char *) "chr1") >= 0)
+    axis = 0;
+  else if (Hash_Lookup((Hash_Table *) plot->db1->hash, (char *) "NC_060925.1") >= 0)
+    axis = 0;
+  else if (plot->db1 != plot->db2 &&
+           Hash_Lookup((Hash_Table *) plot->db2->hash, (char *) "chr1") >= 0)
+    axis = 1;
+  else if (plot->db1 != plot->db2 &&
+           Hash_Lookup((Hash_Table *) plot->db2->hash, (char *) "NC_060925.1") >= 0)
+    axis = 1;
+
+  if (axis < 0)
+    return;   //  Not a CHM13 v2.0 alignment
+
+  if (axis == 0)
+    { gdb  = &(plot->db1->gdb);
+      hash = (Hash_Table *) plot->db1->hash;
+    }
+  else
+    { gdb  = &(plot->db2->gdb);
+      hash = (Hash_Table *) plot->db2->hash;
+    }
+
+  //  Search for annotation directory
+
+  QStringList search_paths;
+  search_paths << QCoreApplication::applicationDirPath() + "/annotations/chm13v2.0";
+  search_paths << QDir::homePath() + "/.alnview/annotations/chm13v2.0";
+  search_paths << "annotations/chm13v2.0";
+
+  base_dir = "";
+  for (const QString &path : search_paths)
+    { QDir dir(path);
+      if (dir.exists())
+        { base_dir = path;
+          break;
+        }
+    }
+
+  if (base_dir.isEmpty())
+    return;   //  No annotation files found
+
+  //  Load all available annotation files
+
+  AnnotTrack *tracks = (AnnotTrack *) Malloc(sizeof(AnnotTrack) * MAX_ANNOT_TRACKS,
+                                             (char *) "Allocating annotation tracks");
+  if (tracks == NULL)
+    return;
+
+  n = 0;
+  for (int i = 0; i < MAX_ANNOT_TRACKS; i++)
+    { QString fname = base_dir + "/chm13v2.0_" + annot_files[i].suffix;
+      QFileInfo fi(fname);
+      if (!fi.exists())
+        continue;
+
+      memset(&tracks[n], 0, sizeof(AnnotTrack));
+
+      int err;
+      if (fname.endsWith(".gff3.gz") || fname.endsWith(".gff3"))
+        err = Read_GFF3(&tracks[n], fname.toLatin1().data(), gdb, hash);
+      else
+        err = Read_BED(&tracks[n], fname.toLatin1().data(), gdb, hash, annot_files[i].type);
+
+      if (err == 0 && tracks[n].nfeat > 0)
+        n++;
+    }
+
+  if (n > 0)
+    { canvas->shareAnnot(tracks, n, axis);
+      state.anoViz = true;
+      annotCheck->setChecked(true);
+    }
+  else
+    free(tracks);
+}
+
+void DotWindow::annotChange()
+{ state.anoViz = annotCheck->isChecked();
+  update();
+}
+
+void DotWindow::anoTrackToggle()
+{ for (int j = 0; j < ANO_NUM_TRACKS; j++)
+    state.anoTrackOn[j] = anoTrackCheck[j]->isChecked();
+  update();
+}
+
+void DotWindow::anoPositionChange(int index)
+{ state.anoPosition = index;
+  update();
+}
+
+void DotWindow::anoOpacityChange(int value)
+{ state.anoOpacity = value;
+  update();
+}
+
+void DotWindow::anoLanesChange(int value)
+{ state.anoGeneLanes = value;
+  update();
+}
+
+void DotWindow::openAnnotFile()
+{ QString fileName = QFileDialog::getOpenFileName(this,
+      tr("Load Annotation File"), QString(),
+      tr("Annotation Files (*.bed *.gff3 *.gff3.gz);;All Files (*)"));
+
+  if (fileName.isEmpty())
+    return;
+
+  //  Determine which axis to annotate (default to db1 = X axis)
+
+  GDB *gdb = &(plot->db1->gdb);
+  Hash_Table *hash = (Hash_Table *) plot->db1->hash;
+  int axis = 0;
+
+  AnnotTrack track;
+  memset(&track, 0, sizeof(AnnotTrack));
+
+  int err;
+  if (fileName.endsWith(".gff3.gz") || fileName.endsWith(".gff3"))
+    err = Read_GFF3(&track, fileName.toLatin1().data(), gdb, hash);
+  else
+    err = Read_BED(&track, fileName.toLatin1().data(), gdb, hash, FEAT_OTHER);
+
+  if (err)
+    { DotWindow::warning(tr("Failed to load annotation file"),this,DotWindow::ERROR,tr("OK"));
+      return;
+    }
+
+  if (track.nfeat == 0)
+    { DotWindow::warning(tr("No features matched genome scaffolds"),this,DotWindow::WARNING,tr("OK"));
+      Free_AnnotTrack(&track);
+      return;
+    }
+
+  //  Append to existing annotation tracks or create new
+
+  AnnotTrack *existing = canvas->annotTracks;
+  int n_existing = canvas->nAnnotTracks;
+
+  AnnotTrack *newTracks = (AnnotTrack *) Realloc(existing,
+                            sizeof(AnnotTrack) * (n_existing + 1),
+                            (char *) "Expanding annotation tracks");
+  if (newTracks == NULL)
+    { Free_AnnotTrack(&track);
+      return;
+    }
+  newTracks[n_existing] = track;
+  canvas->shareAnnot(newTracks, n_existing + 1, axis);
+
+  state.anoViz = true;
+  annotCheck->setChecked(true);
+  update();
+}
+
 
 DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainWindow()
 { int j;
@@ -1721,6 +2402,7 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
             cFormat->addItem(tr("@s.c:#"));
             cFormat->addItem(tr("@id:#"));
             cFormat->addItem(tr("@id.c:#"));
+            cFormat->addItem(tr("chr"));
 
           QLabel *formatLabel = new QLabel(tr("Format: "));
 
@@ -1906,6 +2588,65 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
     locatorLayout->addStretch(1);
     locatorLayout->setContentsMargins(0,0,0,0);
 
+  annotCheck = new QCheckBox(tr("Annotations"));
+
+  static const char *trackNames[ANO_NUM_TRACKS] =
+    { "Cen/Tel/Cyto", "Genes", "Seg. Dups", "Repeats" };
+  for (j = 0; j < ANO_NUM_TRACKS; j++)
+    { anoTrackCheck[j] = new QCheckBox(tr(trackNames[j]));
+      anoTrackCheck[j]->setChecked(true);
+    }
+
+  QLabel *anoPosLabel = new QLabel(tr("Position:"));
+  anoPosCombo = new QComboBox();
+    anoPosCombo->addItem(tr("Edge"));
+    anoPosCombo->addItem(tr("Center"));
+    anoPosCombo->setCurrentIndex(0);
+
+  QLabel *anoOpacLabel = new QLabel(tr("Opacity:"));
+  anoOpacSlider = new QSlider(Qt::Horizontal);
+    anoOpacSlider->setRange(10, 100);
+    anoOpacSlider->setValue(80);
+    anoOpacSlider->setFixedWidth(60);
+
+  QVBoxLayout *trackChecks = new QVBoxLayout;
+    trackChecks->setSpacing(1);
+    trackChecks->setContentsMargins(12,0,0,0);
+    for (j = 0; j < ANO_NUM_TRACKS; j++)
+      trackChecks->addWidget(anoTrackCheck[j]);
+
+  QHBoxLayout *anoPosRow = new QHBoxLayout;
+    anoPosRow->setContentsMargins(12,0,0,0);
+    anoPosRow->addWidget(anoPosLabel);
+    anoPosRow->addWidget(anoPosCombo);
+    anoPosRow->addStretch(1);
+
+  QHBoxLayout *anoOpacRow = new QHBoxLayout;
+    anoOpacRow->setContentsMargins(12,0,0,0);
+    anoOpacRow->addWidget(anoOpacLabel);
+    anoOpacRow->addWidget(anoOpacSlider);
+    anoOpacRow->addStretch(1);
+
+  QLabel *anoLanesLabel = new QLabel(tr("Gene lanes:"));
+  anoLanesSpin = new QSpinBox();
+    anoLanesSpin->setRange(1, 5);
+    anoLanesSpin->setValue(3);
+
+  QHBoxLayout *anoLanesRow = new QHBoxLayout;
+    anoLanesRow->setContentsMargins(12,0,0,0);
+    anoLanesRow->addWidget(anoLanesLabel);
+    anoLanesRow->addWidget(anoLanesSpin);
+    anoLanesRow->addStretch(1);
+
+  QVBoxLayout *annotLayout = new QVBoxLayout;
+    annotLayout->addWidget(annotCheck);
+    annotLayout->addLayout(trackChecks);
+    annotLayout->addLayout(anoPosRow);
+    annotLayout->addLayout(anoOpacRow);
+    annotLayout->addLayout(anoLanesRow);
+    annotLayout->setContentsMargins(0,0,0,0);
+    annotLayout->setSpacing(2);
+
   QLabel *panel = new QLabel();
     panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     panel->setFrameStyle(QFrame::StyledPanel|QFrame::Plain);
@@ -1936,6 +2677,8 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
     controlLayout->addLayout(layerMargin);
     controlLayout->addSpacing(5);
     controlLayout->addLayout(locatorLayout);
+    controlLayout->addSpacing(10);
+    controlLayout->addLayout(annotLayout);
     controlLayout->addWidget(panel);
 
   QWidget *controlPart = new QWidget;
@@ -1994,6 +2737,13 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
         { state.order[j] = j;
           state.on[j] = true;
         }
+      state.axisNames = false;
+      state.anoViz    = false;
+      for (j = 0; j < ANO_NUM_TRACKS; j++)
+        state.anoTrackOn[j] = true;
+      state.anoPosition = 0;
+      state.anoOpacity   = 80;
+      state.anoGeneLanes = 3;
       if (plot->db1->gdb.seqs == NULL || plot->db2->gdb.seqs == NULL)
         { state.on[0] = false;
           layerOn[0]->setEnabled(false);
@@ -2025,6 +2775,13 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
           state.colorR[j] = startState->colorR[j];
           state.thick[j] = startState->thick[j];
         }
+      state.axisNames  = startState->axisNames;
+      state.anoViz     = startState->anoViz;
+      for (j = 0; j < ANO_NUM_TRACKS; j++)
+        state.anoTrackOn[j] = startState->anoTrackOn[j];
+      state.anoPosition = startState->anoPosition;
+      state.anoOpacity   = startState->anoOpacity;
+      state.anoGeneLanes = startState->anoGeneLanes;
       if (plot->db1->gdb.seqs == NULL || plot->db2->gdb.seqs == NULL)
         layerOn[0]->setEnabled(false);
     }
@@ -2073,6 +2830,15 @@ DotWindow::DotWindow(DotPlot *model, DotState *startState, bool isCopy) : QMainW
   connect(locatorTR,SIGNAL(clicked()),this,SLOT(locatorChange()));
   connect(locatorBL,SIGNAL(clicked()),this,SLOT(locatorChange()));
   connect(locatorBR,SIGNAL(clicked()),this,SLOT(locatorChange()));
+
+  connect(annotCheck,SIGNAL(stateChanged(int)),this,SLOT(annotChange()));
+  for (j = 0; j < ANO_NUM_TRACKS; j++)
+    connect(anoTrackCheck[j],SIGNAL(stateChanged(int)),this,SLOT(anoTrackToggle()));
+  connect(anoPosCombo,SIGNAL(currentIndexChanged(int)),this,SLOT(anoPositionChange(int)));
+  connect(anoOpacSlider,SIGNAL(valueChanged(int)),this,SLOT(anoOpacityChange(int)));
+  connect(anoLanesSpin,SIGNAL(valueChanged(int)),this,SLOT(anoLanesChange(int)));
+
+  loadAnnotations();
 
   Arng->setFocus();
   Arng->setChain(zoomEdit,Brng);
@@ -2148,6 +2914,11 @@ void DotWindow::createActions()
     cascadeAct->setShortcut(tr("Ctrl+C"));
     cascadeAct->setToolTip(tr("Cascade all open image windows"));
 
+  loadAnnotAct = new QAction(tr("Load Annotations..."), this);
+    loadAnnotAct->setToolTip(tr("Load BED/GFF3 annotation file"));
+
+  connect(loadAnnotAct, SIGNAL(triggered()), this, SLOT(openAnnotFile()));
+
   connect(toolAct, SIGNAL(triggered()), this, SLOT(toggleToolBar()));
   connect(tileAct,SIGNAL(triggered()),this,SLOT(tileImages()));
   connect(cascadeAct,SIGNAL(triggered()),this,SLOT(cascadeImages()));
@@ -2167,6 +2938,7 @@ void DotWindow::createMenus()
 
   QMenu *fileMenu = bar->addMenu(tr("&File"));
     fileMenu->addAction(openAct);
+    fileMenu->addAction(loadAnnotAct);
     fileMenu->addSeparator();
     fileMenu->addAction(exitAct);
 
@@ -2340,7 +3112,14 @@ void DotWindow::focusChange()
 }
 
 void DotWindow::formatChange(int index)
-{ state.format = index;
+{ if (index == 6)
+    { state.axisNames = true;
+      state.format = FORMAT_i;
+    }
+  else
+    { state.axisNames = false;
+      state.format = index;
+    }
   clickToFocus();
   frameToView(state.zoom);
 }

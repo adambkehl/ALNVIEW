@@ -23,7 +23,7 @@ RCC_DIR = BUILD
 
 QT += widgets
 
-HEADERS       = main_window.h open_window.h sticks.h doter.h alncode.h align.h gene_core.h ONElib.h GDB.h hash.h select.h
-SOURCES       = main.cpp main_window.cpp open_window.cpp sticks.c doter.c alncode.c align.c gene_core.c ONElib.c GDB.c hash.c select.c
+HEADERS       = main_window.h open_window.h sticks.h doter.h alncode.h align.h gene_core.h ONElib.h GDB.h hash.h select.h annotation.h
+SOURCES       = main.cpp main_window.cpp open_window.cpp sticks.c doter.c alncode.c align.c gene_core.c ONElib.c GDB.c hash.c select.c annotation.c
 TARGET        = ALNview
 RESOURCES     = viewer.qrc
