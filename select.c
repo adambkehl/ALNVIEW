@@ -326,11 +326,18 @@ static int get_focus(char *x, int64 *v, Hash_Table *hash1, Hash_Table *hash2)
 
 static int get_range(char *x, int64 *v, Hash_Table *hash)
 { char *y;
+  int   len;
 
   src = x;
+  len = strlen(x);
 
-  y = x + strlen(x) - 1;        //  Clip tailing +/- from string
-  while (isspace(*y))
+  if (len == 0)
+    { EPRINTF("Empty range expression");
+      EXIT(1);
+    }
+
+  y = x + len - 1;              //  Clip tailing +/- from string
+  while (y > x && isspace(*y))
     y -= 1;
   if (*y == '+')
     { v[8] = +1;

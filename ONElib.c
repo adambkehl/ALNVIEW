@@ -389,10 +389,13 @@ static char *schemaFixNewlines (const char *text)
   
 OneSchema *oneSchemaCreateFromText (const char *text) // write to temp file and call CreateFromFile()
 {
+  if (text == NULL)
+    return NULL ;
+
   // Claude points out that the getpid() solution below is not threadsafe.  So it proposed the code below.
   // static char template[64] ;
   // sprintf (template, "/tmp/OneTextSchema-%d.schema", getpid()) ;
-  
+
   char template[] = "/tmp/OneTextSchema-XXXXXX" ;
   errno = 0 ;
   int fd = mkstemp(template) ;

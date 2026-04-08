@@ -632,7 +632,7 @@ void Free_ANO(ANO *ano)
   free(ano->masks);
   free(ano->moff);
   free(ano->prov);
-  if (!ano->shared)
+  if (!ano->shared && ano->gdb != NULL)
     { Close_GDB(ano->gdb);
       free(ano->gdb);
     }

@@ -66,6 +66,8 @@ void SystemX(char *command)
 void *Malloc(int64 size, char *mesg)
 { void *p;
 
+  if (size <= 0)
+    size = 1;
   if ((p = malloc(size)) == NULL)
     { if (mesg == NULL)
         EPRINTF("Out of memory");
